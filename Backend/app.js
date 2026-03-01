@@ -2,15 +2,19 @@ const express = require("express");
 const dotenv = require("dotenv");
 const cors = require("cors");
 const connectDB = require("./db/db");
+const authRoute = require("./routes/authRoute");
 
+const app = express();
+
+app.use(cors());
+app.use(express.json());
+app.use(express.urlencoded({extended:true})) //understand about this 
 dotenv.config()
 connectDB();
 
-const app = express();
-app.use(cors());
 
-app.get("/",(req,res)=>{
-    res.send("hello")
-})
+
+
+app.use("/api/auth",authRoute)
 
 module.exports = app;
