@@ -302,14 +302,139 @@ localStorage.setItem('token', data.token);
 
 ---
 
+### 3. Get User Profile
+
+**Endpoint:** `GET /api/users/profile`
+
+**Description:**  
+Retrieves the authenticated user's profile information. This is a protected route that requires a valid JWT token.
+
+**Request Headers:**
+```
+Authorization: Bearer <your_jwt_token>
+```
+
+**OR**
+
+Token can be sent via cookies with key `token`.
+
+**Request Body:**  
+No request body required.
+
+**Authentication Required:** ✅ Yes
+
+**Success Response:**
+
+**Status Code:** `200 OK`
+
+```json
+{
+  "_id": "60d5ec49f1b2c72b8c8e4f3a",
+  "fullname": {
+    "firstname": "John",
+    "lastname": "Doe"
+  },
+  "email": "john.doe@example.com",
+  "socketId": null
+}
+```
+
+**Error Responses:**
+
+**Status Code:** `401 Unauthorized`
+
+**1. Missing Token:**
+```json
+{
+  "message": "Unauthorized"
+}
+```
+
+**2. Invalid Token:**
+```json
+{
+  "message": "Unauthorized"
+}
+```
+
+**3. Expired Token:**
+```json
+{
+  "message": "Unauthorized"
+}
+```
+
+**Status Code:** `500 Internal Server Error`
+```json
+{
+  "error": "Internal server error message"
+}
+```
+
+**Example Request (cURL):**
+```bash
+curl -X GET http://localhost:3000/api/users/profile \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+```
+
+**Example Request (JavaScript Fetch):**
+```javascript
+const token = localStorage.getItem('token');
+
+const response = await fetch('http://localhost:3000/api/users/profile', {
+  method: 'GET',
+  headers: {
+    'Authorization': `Bearer ${token}`
+  }
+});
+
+const userData = await response.json();
+console.log(userData);
+```
+
+**Example Request (Axios):**
+```javascript
+const token = localStorage.getItem('token');
+
+const { data } = await axios.get('http://localhost:3000/api/users/profile', {
+  headers: {
+    'Authorization': `Bearer ${token}`
+  }
+});
+
+console.log(data);
+```
+
+**Example Request with Axios Interceptor:**
+```javascript
+// Set default authorization header for all requests
+axios.defaults.headers.common['Authorization'] = `Bearer ${localStorage.getItem('token')}`;
+
+// Now you can make requests without manually adding the header
+const { data } = await axios.get('http://localhost:3000/api/users/profile');
+console.log(data);
+```
+
+**Notes:**
+- This is a protected route - authentication token is required
+- Token can be sent in two ways:
+  1. **Authorization Header**: `Authorization: Bearer <token>` (Recommended)
+  2. **Cookie**: Automatically sent if token was set as cookie during login
+- The middleware verifies the JWT token and attaches the user to `req.user`
+- Password field is excluded from the response (due to `select: false` in schema)
+- Use this endpoint to verify if user is authenticated and get user details
+- Common use case: Check authentication status on page load
+
+---
+
 ## Status Codes Summary
 
 | Status Code | Description |
 |-------------|-------------|
-| `200` | Login successful |
+| `200` | Success - Login successful or profile retrieved |
 | `201` | User successfully created |
 | `400` | Bad request - validation errors or missing fields |
-| `401` | Unauthorized - invalid credentials |
+| `401` | Unauthorized - invalid credentials or missing/invalid token |
 | `500` | Internal server error |
 
 ---
