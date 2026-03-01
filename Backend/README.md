@@ -159,12 +159,157 @@ console.log(data);
 
 ---
 
+### 2. Login User
+
+**Endpoint:** `POST /api/users/login`
+
+**Description:**  
+Authenticates an existing user with email and password. Returns a JWT authentication token upon successful login.
+
+**Request Headers:**
+```
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "email": "john.doe@example.com",
+  "password": "password123"
+}
+```
+
+**Required Fields:**
+
+| Field | Type | Required | Validation | Description |
+|-------|------|----------|------------|-------------|
+| `email` | String | Yes | Valid email format | User's registered email address |
+| `password` | String | Yes | Min 6 characters | User's password |
+
+**Success Response:**
+
+**Status Code:** `200 OK`
+
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "user": {
+    "_id": "60d5ec49f1b2c72b8c8e4f3a",
+    "fullname": {
+      "firstname": "John",
+      "lastname": "Doe"
+    },
+    "email": "john.doe@example.com"
+  }
+}
+```
+
+**Error Responses:**
+
+**Status Code:** `400 Bad Request`
+
+**Validation Errors:**
+```json
+{
+  "errors": [
+    {
+      "msg": "Invalid Email",
+      "param": "email",
+      "location": "body"
+    },
+    {
+      "msg": "Password must contain atleast 6 chars",
+      "param": "password",
+      "location": "body"
+    }
+  ]
+}
+```
+
+**Status Code:** `401 Unauthorized`
+
+**1. Invalid Email:**
+```json
+{
+  "message": "Invalid email or password"
+}
+```
+
+**2. Invalid Password:**
+```json
+{
+  "message": "invalid password"
+}
+```
+
+**Status Code:** `500 Internal Server Error`
+```json
+{
+  "error": "Internal server error message"
+}
+```
+
+**Example Request (cURL):**
+```bash
+curl -X POST http://localhost:3000/api/users/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "john.doe@example.com",
+    "password": "password123"
+  }'
+```
+
+**Example Request (JavaScript Fetch):**
+```javascript
+const response = await fetch('http://localhost:3000/api/users/login', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    email: 'john.doe@example.com',
+    password: 'password123'
+  })
+});
+
+const data = await response.json();
+console.log(data);
+
+// Store token for future requests
+localStorage.setItem('token', data.token);
+```
+
+**Example Request (Axios):**
+```javascript
+const { data } = await axios.post('http://localhost:3000/api/users/login', {
+  email: 'john.doe@example.com',
+  password: 'password123'
+});
+
+console.log(data);
+
+// Store token for future requests
+localStorage.setItem('token', data.token);
+```
+
+**Notes:**
+- Password is compared with the hashed password stored in the database using bcrypt
+- JWT token is returned in the response for authentication in subsequent requests
+- User must be registered before attempting to login
+- The token should be stored securely (localStorage, sessionStorage, or cookies)
+- Use the token in Authorization header for protected routes: `Authorization: Bearer <token>`
+- Token does not expire in current implementation (consider adding expiration in production)
+
+---
+
 ## Status Codes Summary
 
 | Status Code | Description |
 |-------------|-------------|
+| `200` | Login successful |
 | `201` | User successfully created |
 | `400` | Bad request - validation errors or missing fields |
+| `401` | Unauthorized - invalid credentials |
 | `500` | Internal server error |
 
 ---

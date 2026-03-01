@@ -25,6 +25,29 @@ async function registerUserController(req,res,next){
     res.status(201).json({token,user});
 }
 
+async function loginUserController(req,res){
+    const {email,password} = req.body
+    
+    const user = await userModel.findOne({email}).select('+password')
+
+    if(!user){
+        res.status(401).json({message:"Invalid email or password"});
+    }
+
+    const isMatch = await user.comparePassword(password);
+
+    if(!isMatch){
+        res.status(401).json({message:"invalid password"});
+    }
+
+    const token = await user.generateAuthToken()
+
+    res.status(200).json({token , user})
+
+
+
+}
 module.exports = {
-    registerUserController
+    registerUserController,
+    loginUserController
 }
