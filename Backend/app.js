@@ -15,6 +15,6 @@ connectDB();
 
 
 
-app.use("/api/auth",authRoute)
+app.use("/api/users",authRoute)
 
 module.exports = app;
