@@ -1,7 +1,7 @@
 const userModel = require("../models/userModel");
 
 async function createUser({firstname,lastname,email,password}){
-    if(!firstname || !lastname || !email ||!password){
+    if(!firstname || !email ||!password){
         throw new Error("All fields are required")
     }
 
