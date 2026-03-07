@@ -585,18 +585,26 @@ async function logout() {
 | `200` | Success - Login successful, profile retrieved, or logged out |
 | `201` | Resource successfully created (User or Captain registered) |
 | `400` | Bad request - validation errors, missing fields, or duplicate entry |
-| `401` | Unauthorized - invalid credentials or missing/invalid token |
+| `401` | Unauthorized - invalid credentials or missing/invalid/blacklisted token |
+| `404` | Resource not found |
 | `500` | Internal server error |
 
 ---
 
 ## Authentication
 
-After successful registration, use the returned JWT token for authenticated requests:
+After successful registration or login, use the returned JWT token for authenticated requests:
 
+**For Users and Captains:**
 ```
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 ```
+
+**Token Details:**
+- Tokens expire after 24 hours
+- Tokens can be sent via Authorization header or cookies
+- Logged out tokens are blacklisted and cannot be reused
+- Blacklisted tokens are automatically deleted after 24 hours
 
 ---
 
@@ -820,6 +828,450 @@ localStorage.setItem('captainToken', data.token);
 - **car**: Standard 4-wheeler vehicle
 - **motorcycle**: Two-wheeler vehicle  
 - **auto**: Auto-rickshaw (3-wheeler)
+
+---
+
+### 2. Login Captain
+
+**Endpoint:** `POST /api/captains/login`
+
+**Description:**  
+Authenticates an existing captain with email and password. Returns a JWT authentication token upon successful login.
+
+**Request Headers:**
+```
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "email": "jane.smith@example.com",
+  "password": "password123"
+}
+```
+
+**Required Fields:**
+
+| Field | Type | Required | Validation | Description |
+|-------|------|----------|------------|-------------|
+| `email` | String | Yes | Valid email format | Captain's registered email address |
+| `password` | String | Yes | Not empty | Captain's password |
+
+**Success Response:**
+
+**Status Code:** `200 OK`
+
+```json
+{
+  "message": "Login successful",
+  "captain": {
+    "_id": "60d5ec49f1b2c72b8c8e4f3b",
+    "fullname": {
+      "firstname": "Jane",
+      "lastname": "Smith"
+    },
+    "email": "jane.smith@example.com",
+    "status": "inactive",
+    "vehicle": {
+      "color": "Black",
+      "plate": "ABC-1234",
+      "capacity": 4,
+      "vehicleType": "car"
+    }
+  },
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+**Error Responses:**
+
+**Status Code:** `400 Bad Request`
+
+**Validation Errors:**
+```json
+{
+  "errors": [
+    {
+      "msg": "Email is required",
+      "param": "email",
+      "location": "body"
+    },
+    {
+      "msg": "Invalid email format",
+      "param": "email",
+      "location": "body"
+    },
+    {
+      "msg": "Password is required",
+      "param": "password",
+      "location": "body"
+    }
+  ]
+}
+```
+
+**Status Code:** `401 Unauthorized`
+
+**Invalid Credentials:**
+```json
+{
+  "message": "Invalid email or password"
+}
+```
+
+**Status Code:** `500 Internal Server Error`
+```json
+{
+  "message": "Server error",
+  "error": "Error details"
+}
+```
+
+**Example Request (cURL):**
+```bash
+curl -X POST http://localhost:3000/api/captains/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "jane.smith@example.com",
+    "password": "password123"
+  }'
+```
+
+**Example Request (JavaScript Fetch):**
+```javascript
+const response = await fetch('http://localhost:3000/api/captains/login', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    email: 'jane.smith@example.com',
+    password: 'password123'
+  })
+});
+
+const data = await response.json();
+console.log(data);
+
+// Store token for future requests
+localStorage.setItem('captainToken', data.token);
+```
+
+**Example Request (Axios):**
+```javascript
+const { data } = await axios.post('http://localhost:3000/api/captains/login', {
+  email: 'jane.smith@example.com',
+  password: 'password123'
+});
+
+console.log(data);
+
+// Store token for future requests
+localStorage.setItem('captainToken', data.token);
+```
+
+**Notes:**
+- Password is compared with the hashed password stored in the database using bcrypt
+- JWT token is returned with 24-hour expiration
+- Token is also set as a cookie named "token"
+- Captain must be registered before attempting to login
+- The token should be stored securely for authentication in subsequent requests
+- Use the token in Authorization header for protected routes: `Authorization: Bearer <token>`
+
+---
+
+### 3. Get Captain Profile
+
+**Endpoint:** `GET /api/captains/profile`
+
+**Description:**  
+Retrieves the authenticated captain's profile information. This is a protected route that requires a valid JWT token.
+
+**Request Headers:**
+```
+Authorization: Bearer <your_jwt_token>
+```
+
+**OR**
+
+Token can be sent via cookies with key `token`.
+
+**Request Body:**  
+No request body required.
+
+**Authentication Required:** ✅ Yes
+
+**Success Response:**
+
+**Status Code:** `200 OK`
+
+```json
+{
+  "captain": {
+    "_id": "60d5ec49f1b2c72b8c8e4f3b",
+    "fullname": {
+      "firstname": "Jane",
+      "lastname": "Smith"
+    },
+    "email": "jane.smith@example.com",
+    "status": "inactive",
+    "vehicle": {
+      "color": "Black",
+      "plate": "ABC-1234",
+      "capacity": 4,
+      "vehicleType": "car"
+    },
+    "location": {
+      "lat": null,
+      "lng": null
+    }
+  }
+}
+```
+
+**Error Responses:**
+
+**Status Code:** `401 Unauthorized`
+
+**1. No Token Provided:**
+```json
+{
+  "message": "Unauthorized - No token provided"
+}
+```
+
+**2. Invalid Token:**
+```json
+{
+  "message": "Unauthorized - Invalid token"
+}
+```
+
+**3. Blacklisted Token:**
+```json
+{
+  "message": "Unauthorized - Token blacklisted"
+}
+```
+
+**4. Captain Not Found:**
+```json
+{
+  "message": "Unauthorized - Captain not found"
+}
+```
+
+**Status Code:** `404 Not Found`
+```json
+{
+  "message": "Captain not found"
+}
+```
+
+**Status Code:** `500 Internal Server Error`
+```json
+{
+  "message": "Server error",
+  "error": "Error details"
+}
+```
+
+**Example Request (cURL):**
+```bash
+curl -X GET http://localhost:3000/api/captains/profile \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+```
+
+**Example Request (JavaScript Fetch):**
+```javascript
+const token = localStorage.getItem('captainToken');
+
+const response = await fetch('http://localhost:3000/api/captains/profile', {
+  method: 'GET',
+  headers: {
+    'Authorization': `Bearer ${token}`
+  }
+});
+
+const captainData = await response.json();
+console.log(captainData);
+```
+
+**Example Request (Axios):**
+```javascript
+const token = localStorage.getItem('captainToken');
+
+const { data } = await axios.get('http://localhost:3000/api/captains/profile', {
+  headers: {
+    'Authorization': `Bearer ${token}`
+  }
+});
+
+console.log(data);
+```
+
+**Notes:**
+- This is a protected route - authentication token is required
+- Token can be sent in two ways:
+  1. **Authorization Header**: `Authorization: Bearer <token>` (Recommended)
+  2. **Cookie**: Automatically sent if token was set as cookie during login
+- The middleware verifies the JWT token and checks if it's blacklisted
+- Password field is excluded from the response (due to `select: false` in schema)
+- Use this endpoint to verify if captain is authenticated and get captain details
+- Common use case: Check authentication status on page load, display driver dashboard
+
+---
+
+### 4. Logout Captain
+
+**Endpoint:** `GET /api/captains/logout`
+
+**Description:**  
+Logs out the authenticated captain by blacklisting their JWT token and clearing the authentication cookie. This is a protected route that requires a valid JWT token.
+
+**Request Headers:**
+```
+Authorization: Bearer <your_jwt_token>
+```
+
+**OR**
+
+Token can be sent via cookies with key `token`.
+
+**Request Body:**  
+No request body required.
+
+**Authentication Required:** ✅ Yes
+
+**Success Response:**
+
+**Status Code:** `200 OK`
+
+```json
+{
+  "message": "Logout successful"
+}
+```
+
+**Error Responses:**
+
+**Status Code:** `401 Unauthorized`
+
+**1. No Token Provided:**
+```json
+{
+  "message": "Unauthorized - No token provided"
+}
+```
+
+**2. Invalid Token:**
+```json
+{
+  "message": "Unauthorized - Invalid token"
+}
+```
+
+**3. Already Logged Out (Blacklisted Token):**
+```json
+{
+  "message": "Unauthorized - Token blacklisted"
+}
+```
+
+**Status Code:** `500 Internal Server Error`
+```json
+{
+  "message": "Server error",
+  "error": "Error details"
+}
+```
+
+**Example Request (cURL):**
+```bash
+curl -X GET http://localhost:3000/api/captains/logout \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+```
+
+**Example Request (JavaScript Fetch):**
+```javascript
+const token = localStorage.getItem('captainToken');
+
+const response = await fetch('http://localhost:3000/api/captains/logout', {
+  method: 'GET',
+  headers: {
+    'Authorization': `Bearer ${token}`
+  }
+});
+
+const data = await response.json();
+console.log(data); // { message: "Logout successful" }
+
+// Clear token from storage
+localStorage.removeItem('captainToken');
+```
+
+**Example Request (Axios):**
+```javascript
+const token = localStorage.getItem('captainToken');
+
+const { data } = await axios.get('http://localhost:3000/api/captains/logout', {
+  headers: {
+    'Authorization': `Bearer ${token}`
+  }
+});
+
+console.log(data); // { message: "Logout successful" }
+
+// Clear token from storage
+localStorage.removeItem('captainToken');
+```
+
+**Complete Logout Flow Example:**
+```javascript
+async function logoutCaptain() {
+  try {
+    const token = localStorage.getItem('captainToken');
+    
+    const response = await fetch('http://localhost:3000/api/captains/logout', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    
+    if (response.ok) {
+      // Remove token from storage
+      localStorage.removeItem('captainToken');
+      
+      // Redirect to login page
+      window.location.href = '/captain/login';
+    }
+  } catch (error) {
+    console.error('Logout failed:', error);
+  }
+}
+```
+
+**Notes:**
+- This is a protected route - authentication token is required
+- The token is added to a **blacklist** in the database to prevent reuse
+- The authentication cookie is cleared from the browser
+- Blacklisted tokens are automatically deleted after **24 hours** using MongoDB TTL index
+- Once logged out, the same token cannot be used again (even if not expired)
+- After logout, make sure to:
+  1. Remove token from localStorage/sessionStorage
+  2. Clear any Redux/Vuex auth state
+  3. Redirect captain to login page
+- Token can be sent via Authorization header or cookie (both work)
+- The blacklist prevents security issues from stolen tokens
+
+**How Token Blacklisting Works:**
+1. Captain logs out
+2. Server adds token to `blackListToken` collection
+3. MongoDB TTL index automatically deletes entry after 24 hours
+4. Future requests with this token are rejected by auth middleware
+5. Database stays clean (no accumulation of old tokens)
 
 ---
 
