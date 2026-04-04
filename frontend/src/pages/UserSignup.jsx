@@ -1,28 +1,40 @@
-import React, { useState } from 'react'
+import React, { useState, useContext } from 'react'
 import uberLogo from "../assets/uber-logo.png";
-import { Link } from "react-router-dom";
-
+import { Link, useNavigate } from "react-router-dom";
+import {  UserDataContext } from '../context/UserContext';
+import axios from "axios"
+// TODO : Understand axios (what it do , how it do , how to use it and why use we use it )
 const UserSignup = () => {
-  const [firstName,setFirstName] = useState("")
-  const [lastName,setLastName] = useState("")
+  const [firstname,setFirstName] = useState("")
+  const [lastname,setLastName] = useState("")
   const [email,setEmail] = useState("")
   const [password,setPassword] = useState("")
   const [userData,setUserData] = useState({})
 
-  const submitHandler = (e)=>{
-    setUserData({
-        Fullname:{
-          firstName:firstName,
-          lastName:lastName,
+  const {user, setUser} = useContext(UserDataContext)
+  const navigate = useNavigate();
+  const submitHandler = async (e)=>{
+    e.preventDefault();
+      const newUser = {
+        fullname:{
+          firstname:firstname,
+          lastname:lastname,
         },
         password:password,
         email:email
-      })
+      }
+      const response = await axios.post(`${import.meta.env.VITE_BASE_URL}api/users/register`,newUser)
+      if(response.status === 201){
+        const data = response.data
+        localStorage.setItem('token',data.token)
+        setUser(data.user)
+        navigate('/home') //TODO:Understand useNavigate
+      }
       setEmail("")
       setFirstName("")
       setLastName("")
       setPassword("")
-      e.preventDefault();
+      
 
   }
   return (
@@ -41,7 +53,7 @@ const UserSignup = () => {
             type="text"
             required
             placeholder="firstname"
-            value={firstName}
+            value={firstname}
             
             onChange={(e)=>{
               setFirstName(e.target.value)
@@ -52,7 +64,7 @@ const UserSignup = () => {
             type="text"
             required
             placeholder="lastname"
-            value={lastName}
+            value={lastname}
             onChange={(e)=>{
               setLastName(e.target.value)
             }}

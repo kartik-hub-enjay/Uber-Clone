@@ -32,13 +32,13 @@ async function loginUserController(req,res){
     const user = await userModel.findOne({email}).select('+password')
 
     if(!user){
-        res.status(401).json({message:"Invalid email or password"});
+        return res.status(401).json({message:"Invalid email or password"});
     }
 
     const isMatch = await user.comparePassword(password);
 
     if(!isMatch){
-        res.status(401).json({message:"invalid password"});
+        return res.status(401).json({message:"invalid password"});
     }
 
     const token = await user.generateAuthToken()
