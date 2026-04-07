@@ -6,9 +6,12 @@ import UserSignup from "./pages/UserSignup";
 import CaptainLogin from "./pages/CaptainLogin";
 import CaptainSignup from "./pages/CaptainSignup";
 import UserProtectedWrapper from "./pages/UserProtectedWrapper";
-import UserLogout from '../src/pages/UserLogout'
+import UserLogout from "../src/pages/UserLogout";
 import Start from "./pages/Start";
 import Home from "./pages/Home";
+import CaptainHome from "./pages/CaptainHome";
+import CaptainProtectedWrapper from "./pages/CaptainProtectedWrapper";
+import CaptainLogout from "./pages/CaptainLogout";
 
 const App = () => {
   return (
@@ -28,15 +31,30 @@ const App = () => {
           }
         />
         <Route
-        path="/user-logout"
-        element={
-          <UserProtectedWrapper>
-            <UserLogout />
-          </UserProtectedWrapper>
-        }
-      />
+          path="/user-logout"
+          element={
+            <UserProtectedWrapper>
+              <UserLogout />
+            </UserProtectedWrapper>
+          }
+        />
+        <Route
+          path="/captain-home"
+          element={
+            <CaptainProtectedWrapper>
+              <CaptainHome />
+            </CaptainProtectedWrapper>
+          }
+        />
       </Routes>
-      
+      <Route
+        path="/captain-logout"
+        element={
+          <CaptainProtectedWrapper>
+            <CaptainLogout />
+          </CaptainProtectedWrapper>
+        }
+      ></Route>
     </>
   );
 };

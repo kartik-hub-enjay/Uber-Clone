@@ -1,30 +1,51 @@
-import {React,useState} from 'react'
-import {Link} from "react-router-dom"
+import { React, useContext, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import uberLogo from "../assets/uber-logo.png";
-
+import { CaptainDataContext } from "../context/CaptainContext";
+import axios from 'axios'
 
 const CaptainLogin = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [captainData,setCaptainData] = useState({})
-  const submitHandler = (e) =>{
-      setCaptainData({
-        email:email,
-        password:password
-      })
-      e.prventDefault();
-      setEmail("")
-      setPassword("")
+  
+  const { captain, setCaptain } = useContext(CaptainDataContext);
+
+  const navigate = useNavigate()
+  const submitHandler = async (e) => {
+    e.preventDefault();
+
+    try {
+      const captainData = {
+        email: email,
+        password: password,
+      }
+      const response = await axios.post(`${import.meta.env.VITE_BASE_URL}api/captains/login`,captainData)
+
+      if(response.status == 200){
+        const data = response.data
+        localStorage.setItem('token',data.token)
+        setCaptain(data.captain)
+        navigate('/captain-home')
+      }
+       setEmail("");
+        setPassword("");
+    } catch (error) {
+      console.error(error.response?.data || error.message)
+      alert(error.response?.data?.message || "Login failed")
     }
+    
+  };
   return (
     <div className="p-5 pt-3 h-screen flex flex-col justify-between ">
       <div>
         <div>
           <img className="w-15" src={uberLogo} alt="Uber Logo" />
         </div>
-        <form onSubmit={(e)=>{
-          submitHandler(e)
-        }}>
+        <form
+          onSubmit={(e) => {
+            submitHandler(e);
+          }}
+        >
           <h3 className="text-lg font-medium mb-2">What's your email</h3>
           <input
             className="bg-[#eeeeee] mb-7 rounded px-4 py-2 w-full text-lg placeholder:text-sm"
@@ -65,14 +86,15 @@ const CaptainLogin = () => {
       </div>
 
       <div>
-        <Link 
-        to="/login" 
-        className="bg-[#305CDE] mb-3 flex items-center justify-center text-white font-semibold rounded px-4 py-2  w-full text-lg placeholder:text-sm">
+        <Link
+          to="/login"
+          className="bg-[#305CDE] mb-3 flex items-center justify-center text-white font-semibold rounded px-4 py-2  w-full text-lg placeholder:text-sm"
+        >
           Sign In as User
         </Link>
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default CaptainLogin
+export default CaptainLogin;
