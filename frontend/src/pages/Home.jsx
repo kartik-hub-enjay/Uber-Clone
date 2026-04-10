@@ -5,15 +5,25 @@ import gsap from "gsap"
 import 'remixicon/fonts/remixicon.css'
 import LocationSearchPanel from '../components/LocationSearchPanel';
 import VehiclePanel from '../components/VehiclePanel';
+import ConfirmRide from '../components/ConfirmRide';
+import LookingForDriver from '../components/LookingForDriver';
+import WaitingForDriver from '../components/WaitingForDriver';
 
 const Home = () => {
   const [pickup , setPickup] = useState('')
   const [destination,setDestination] = useState('')
   const [panelOpen,setPanelOpen] = useState(false)
   const [vehiclePanelOpen , setVehiclePanelOpen] = useState(false)
+  const [confirmRidePanel,setconfirmRidePanel] = useState(false)
+  const [vehicleFound,setVehicleFound] = useState(false)
+  const [waitingForDriver,setWaitingForDriver] = useState(false)
+
   const panelRef = useRef(null)
   const panelCloseRef = useRef(null)
   const vehiclePanelOpenRef = useRef(null)
+  const confirmRidePanelRef = useRef(null)
+  const vehicleFoundRef = useRef(null)
+  const waitingForDriverRef = useRef(null)
 
   const submitHandler = (e) =>{
     e.preventDefault();
@@ -49,7 +59,42 @@ const Home = () => {
         transform:'translateY(100%)'
       })
     }
-  })
+  },[vehiclePanelOpen])
+  useGSAP(function(){
+    if(confirmRidePanel){
+      gsap.to(confirmRidePanelRef.current,{
+        transform:'translateY(0)',
+      })
+    }else{
+      gsap.to(confirmRidePanelRef.current,{
+        transform:'translateY(100%)'
+      })
+    }
+  },[confirmRidePanel])
+
+  useGSAP(function(){
+    if(vehicleFound){
+      gsap.to(vehicleFoundRef.current,{
+        transform:'translateY(0)',
+      })
+    }else{
+      gsap.to(vehicleFoundRef.current,{
+        transform:'translateY(100%)'
+      })
+    }
+  },[vehicleFound])
+
+  useGSAP(function(){
+    if(waitingForDriver){
+      gsap.to(waitingForDriverRef.current,{
+        transform:'translateY(0)',
+      })
+    }else{
+      gsap.to(waitingForDriverRef.current,{
+        transform:'translateY(100%)'
+      })
+    }
+  },[waitingForDriver])
   return (
     <div className='h-screen relative'>
        <img className="w-15 absolute m-3 mt-1" src={uberLogo} alt="Uber Logo" />
@@ -99,7 +144,16 @@ const Home = () => {
           </div>
        </div>
        <div ref={vehiclePanelOpenRef} className='fixed w-full z-10 bottom-0 translate-y-full bg-white px-3 py-10 pt-14'>
-            <VehiclePanel setVehiclePanelOpen={setVehiclePanelOpen}/>
+            <VehiclePanel setVehiclePanelOpen={setVehiclePanelOpen} setconfirmRidePanel={setconfirmRidePanel}/>
+       </div>
+       <div ref={vehiclePanelOpenRef} className='fixed w-full z-10 bottom-0 translate-y-full bg-white px-3 py-10 pt-14'>
+            <ConfirmRide setVehicleFound={setVehicleFound} setconfirmRidePanel={setconfirmRidePanel}/>
+       </div>
+       <div ref={vehicleFoundRef}  className='fixed w-full z-10 bottom-0 translate-y-full bg-white px-3 py-10 pt-14'>
+           <LookingForDriver setVehicleFound={setVehicleFound}/>
+       </div>
+       <div ref={waitingForDriverRef}  className='fixed w-full z-10 bottom-0 translate-y-full bg-white px-3 py-10 pt-14'>
+           <WaitingForDriver/>
        </div>
     </div>
   )
