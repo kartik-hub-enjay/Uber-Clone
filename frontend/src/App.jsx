@@ -46,15 +46,16 @@ const App = () => {
             </CaptainProtectedWrapper>
           }
         />
-      </Routes>
-      <Route
+        <Route
         path="/captain-logout"
         element={
           <CaptainProtectedWrapper>
             <CaptainLogout />
           </CaptainProtectedWrapper>
         }
-      ></Route>
+      />
+      </Routes>
+      
     </>
   );
 };

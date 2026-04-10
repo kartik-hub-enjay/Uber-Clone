@@ -883,5 +883,112 @@ try {
 - Makes GET requests for user profile
 - Handles errors and shows user-friendly messages
 
+---
+
+## useRef in React
+
+### What is useRef?
+
+`useRef` is a React hook that gives you a **mutable container** whose value survives re-renders.
+
+```javascript
+const myRef = useRef(initialValue)
+```
+
+It returns an object like:
+
+```javascript
+{ current: initialValue }
+```
+
+### Why do we use useRef?
+
+We use `useRef` mainly for 2 purposes:
+
+1. **Accessing DOM elements directly**
+  - Example: focus an input, measure height/width, animate an element.
+
+2. **Storing mutable values without re-rendering**
+  - Unlike `useState`, changing `ref.current` does **not** trigger a re-render.
+
+### useRef vs useState
+
+| Hook | Stores value? | Triggers re-render on change? | Best for |
+|------|---------------|-------------------------------|----------|
+| `useState` | ✅ Yes | ✅ Yes | UI data that should update screen |
+| `useRef` | ✅ Yes (`.current`) | ❌ No | DOM nodes, timers, previous values, animation refs |
+
+### How do we use useRef?
+
+#### 1. Create ref
+
+```javascript
+const inputRef = useRef(null)
+```
+
+#### 2. Attach to element
+
+```jsx
+<input ref={inputRef} />
+```
+
+#### 3. Use `.current`
+
+```javascript
+inputRef.current.focus()
+```
+
+### How we are using useRef in this project
+
+You are already using `useRef` in Home page:
+
+- File: `frontend/src/pages/Home.jsx`
+- Code pattern:
+
+```javascript
+const panelRef = useRef(null)
+```
+
+and then:
+
+```jsx
+<div ref={panelRef} className='bg-red-300 h-0'></div>
+```
+
+and in GSAP animation:
+
+```javascript
+gsap.to(panelRef.current, {
+  height: '70%'
+})
+```
+
+### Why useRef is correct here
+
+In your Home page, `panelRef` is used to give GSAP a direct handle to the panel DOM node.
+
+- When `panelOpen` changes, GSAP animates `panelRef.current`
+- You do **not** need UI re-render just to store DOM reference
+- `useRef` is perfect for this animation use case
+
+### In simple words
+
+`useRef` is like a persistent box that React keeps for you between renders.
+
+- Put DOM node in it → control element directly
+- Put mutable value in it → keep value without re-render
+
+### Common mistakes to avoid with useRef
+
+1. Don’t expect `ref.current` updates to re-render UI.
+2. Don’t use useRef for values that must update the screen (use `useState` for that).
+3. Don’t access `ref.current` before element is mounted (it can be `null`).
+
+### Quick Summary
+
+- `useRef` stores mutable values across renders.
+- Best for DOM access and integration with libraries like GSAP.
+- In this project, it is used in Home page to animate the bottom panel smoothly.
+
 _Add more frontend notes as you learn..._
 

@@ -7,18 +7,19 @@ const UserProtectedWrapper = ({children}) => {
     const token = localStorage.getItem('token')
     const navigate = useNavigate()
     const {user,setUser} = useContext(UserDataContext)
-    const {isLoading,setIsLoading} = useState(true)
+    const [isLoading,setIsLoading] = useState(true)
     useEffect(()=>{
       if(!token){
         navigate("/login")
+        return
     }
-      axios.get(`${import.meta.env.VITE_BASE_URL}/users/profile`,{
+      axios.get(`${import.meta.env.VITE_BASE_URL}api/users/profile`,{
         headers :{
           Authorization :`Bearer ${token}`
         }
       }).then((response) =>{
-        if(response.status == 200){
-          setUser(response.data.user)
+        if(response.status === 200){
+          setUser(response.data)
           setIsLoading(false)
         }
       }).catch(err =>{
@@ -26,7 +27,7 @@ const UserProtectedWrapper = ({children}) => {
         localStorage.removeItem('token')
         navigate('/login')
       })
-    },[token])
+    },[token, navigate, setUser])
 
     if(isLoading){
       return <div>Loading.....</div>
