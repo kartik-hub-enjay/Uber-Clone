@@ -1275,4 +1275,276 @@ async function logoutCaptain() {
 
 ---
 
+## Maps Endpoints
+
+### 1. Get Coordinates
+
+**Endpoint:** `GET /api/maps/get-coordinates`
+
+**Description:**  
+Converts a text address into coordinates using free OpenStreetMap-based geocoding.
+
+**Request Headers:**
+```
+Authorization: Bearer <your_jwt_token>
+```
+
+**Query Params:**
+
+| Param | Type | Required | Validation | Description |
+|------|------|----------|------------|-------------|
+| `address` | String | Yes | Min 3 characters | Address text to geocode |
+
+**Success Response:**
+
+**Status Code:** `200 OK`
+
+```json
+{
+  "ltd": 28.6314022,
+  "lng": 77.2193791
+}
+```
+
+**Error Responses:**
+
+**Status Code:** `400 Bad Request`
+```json
+{
+  "errors": [
+    {
+      "msg": "Invalid value",
+      "path": "address",
+      "location": "query"
+    }
+  ]
+}
+```
+
+**Status Code:** `404 Not Found`
+```json
+{
+  "message": "Coordinates not found"
+}
+```
+
+---
+
+### 2. Get Distance and Time
+
+**Endpoint:** `GET /api/maps/get-distance-time`
+
+**Description:**  
+Returns road distance and estimated travel duration between two addresses.
+
+**Request Headers:**
+```
+Authorization: Bearer <your_jwt_token>
+```
+
+**Query Params:**
+
+| Param | Type | Required | Validation | Description |
+|------|------|----------|------------|-------------|
+| `origin` | String | Yes | Min 3 characters | Start location |
+| `destination` | String | Yes | Min 3 characters | End location |
+
+**Success Response:**
+
+**Status Code:** `200 OK`
+
+```json
+{
+  "distance": {
+    "text": "4.2 km",
+    "value": 4245
+  },
+  "duration": {
+    "text": "6 mins",
+    "value": 337
+  },
+  "origin": {
+    "address": "Connaught Place Delhi",
+    "coordinates": {
+      "ltd": 28.6314022,
+      "lng": 77.2193791
+    }
+  },
+  "destination": {
+    "address": "India Gate Delhi",
+    "coordinates": {
+      "ltd": 28.6129332,
+      "lng": 77.2294928
+    }
+  }
+}
+```
+
+**Error Responses:**
+
+**Status Code:** `400 Bad Request`
+```json
+{
+  "errors": [
+    {
+      "msg": "Invalid value",
+      "path": "origin",
+      "location": "query"
+    }
+  ]
+}
+```
+
+**Status Code:** `404 Not Found`
+```json
+{
+  "message": "Distance and time not found"
+}
+```
+
+---
+
+### 3. Get AutoComplete Suggestions
+
+**Endpoint:** `GET /api/maps/get-suggestions`
+
+**Description:**  
+Returns location suggestions for typed input (pickup/drop) using free OpenStreetMap alternatives.
+
+**Request Headers:**
+```
+Authorization: Bearer <your_jwt_token>
+```
+
+**Query Params:**
+
+| Param | Type | Required | Validation | Description |
+|------|------|----------|------------|-------------|
+| `input` | String | Yes | Min 3 characters | Partial location text |
+
+**Success Response:**
+
+**Status Code:** `200 OK`
+
+```json
+[
+  {
+    "description": "Connaught Place, Delhi, India",
+    "placeId": 561299050,
+    "ltd": 28.6314022,
+    "lng": 77.2193791
+  }
+]
+```
+
+**Error Responses:**
+
+**Status Code:** `400 Bad Request`
+```json
+{
+  "errors": [
+    {
+      "msg": "Invalid value",
+      "path": "input",
+      "location": "query"
+    }
+  ]
+}
+```
+
+**Status Code:** `404 Not Found`
+```json
+{
+  "message": "Suggestions not found"
+}
+```
+
+---
+
+## Ride Endpoints
+
+### 1. Create Ride
+
+**Endpoint:** `POST /api/rides/create`
+
+**Description:**  
+Creates a ride request for an authenticated user. Fare is calculated from route distance/time and selected vehicle type.
+
+**Request Headers:**
+```
+Content-Type: application/json
+Authorization: Bearer <your_jwt_token>
+```
+
+**Request Body:**
+```json
+{
+  "pickup": "World Trade Park, Jaipur",
+  "destination": "Chandpole, Jaipur",
+  "vehicleType": "motorcycle"
+}
+```
+
+**Required Fields:**
+
+| Field | Type | Required | Validation | Description |
+|-------|------|----------|------------|-------------|
+| `pickup` | String | Yes | Min 3 characters | Pickup location |
+| `destination` | String | Yes | Min 3 characters | Drop location |
+| `vehicleType` | String | Yes | One of: `auto`, `car`, `motorcycle` | Selected vehicle category |
+
+**Success Response:**
+
+**Status Code:** `201 Created`
+
+```json
+{
+  "_id": "67f7d8f6a57e7f1c2e8f1234",
+  "user": "67f7d8c4a57e7f1c2e8f9999",
+  "pickup": "World Trade Park, Jaipur",
+  "destination": "Chandpole, Jaipur",
+  "fare": 121,
+  "status": "pending",
+  "createdAt": "2026-04-11T12:00:00.000Z",
+  "updatedAt": "2026-04-11T12:00:00.000Z",
+  "__v": 0
+}
+```
+
+**Error Responses:**
+
+**Status Code:** `400 Bad Request`
+```json
+{
+  "errors": [
+    {
+      "msg": "Invalid vehicle type",
+      "path": "vehicleType",
+      "location": "body"
+    }
+  ]
+}
+```
+
+**Status Code:** `500 Internal Server Error`
+```json
+{
+  "message": "All fields are required"
+}
+```
+
+**Example Request (cURL):**
+```bash
+curl -X POST http://localhost:3000/api/rides/create \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
+  -d '{
+    "pickup": "World Trade Park, Jaipur",
+    "destination": "Chandpole, Jaipur",
+    "vehicleType": "motorcycle"
+  }'
+```
+
+---
+
 _More endpoints documentation coming soon..._
