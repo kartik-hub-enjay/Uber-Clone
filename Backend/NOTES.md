@@ -498,7 +498,495 @@ Without these middleware, you'd have to manually parse request bodies - these ma
 
 ---
 
+## Maps API - getCoordinates Flow
+
+### Endpoint Overview
+
+This endpoint converts a text address into latitude/longitude.
+
+- Route path: `GET /maps/get-coordinates`
+- Required query param: `address`
+- Protected route: Yes (requires logged-in user token)
+
+### Where It Is Implemented
+
+1. Route layer: `Backend/routes/mapRoute.js`
+2. Controller layer: `Backend/controllers/mapController.js`
+3. Service layer: `Backend/services/mapsService.js`
+4. Mounted in app: `Backend/app.js` using `app.use('/maps', mapsRoutes)`
+
+### Full Request Lifecycle (Step by Step)
+
+#### Step 1: Client sends request
+
+Example request:
+
+```http
+GET /maps/get-coordinates?address=Connaught%20Place%20Delhi
+Authorization: Bearer <jwt_token>
+```
+
+#### Step 2: Route validation runs (`mapRoute.js`)
+
+Route applies:
+
+```javascript
+query('address').isString().isLength({ min: 3 })
+```
+
+Meaning:
+- `address` must exist as query string
+- It must be a string
+- Minimum length must be 3
+
+If validation fails, controller returns `400` with validation errors.
+
+#### Step 3: Auth middleware runs (`authMiddelware.js`)
+
+`authUser` checks:
+- Token in cookie or `Authorization` header
+- Token validity (JWT verify)
+- Token not blacklisted
+
+If auth fails, request is rejected with `401`.
+
+#### Step 4: Controller handles business flow (`mapController.js`)
+
+Controller logic:
+1. Reads validation result with `validationResult(req)`
+2. If errors -> `res.status(400).json({ errors })`
+3. Reads `address` from `req.query`
+4. Calls service: `mapService.getAddressCoordinate(address)`
+5. If success -> `res.status(200).json(coordinates)`
+6. If failure -> `res.status(404).json({ message: 'Coordinates not found' })`
+
+#### Step 5: Service calls geocoding providers (`mapsService.js`)
+
+Current implementation uses a **free two-layer geocoding strategy**:
+
+1. **Primary**: OpenStreetMap Nominatim
+2. **Fallback**: Photon (OpenStreetMap-based)
+
+Service logic:
+1. Normalize and validate input:
+- Trim incoming address
+- Reject if empty or too short (`< 3` chars)
+
+2. Build URLs:
+
+```javascript
+// Primary
+https://nominatim.openstreetmap.org/search?format=json&limit=1&q=<encoded-address>
+
+// Fallback
+https://photon.komoot.io/api/?q=<encoded-address>&limit=1
+```
+
+3. Primary request (Nominatim):
+- Uses axios with `User-Agent` header (required by Nominatim policy)
+- Uses timeout (`8000 ms`)
+- If at least one result exists, return first match
+
+4. Fallback request (Photon):
+- Triggered only when Nominatim returns no results
+- Reads coordinates from `features[0].geometry.coordinates` (`[lon, lat]`)
+- Converts to app format
+
+5. Return object in your app format:
+
+```javascript
+{ ltd: Number(lat), lng: Number(lng) }
+```
+
+6. If both providers fail -> throw `Unable to fetch coordinates`
+
+### Response Contract in This Project
+
+#### Success (`200`)
+
+```json
+{
+  "ltd": 28.6304,
+  "lng": 77.2177
+}
+```
+
+#### Validation error (`400`)
+
+```json
+{
+  "errors": [
+    {
+      "msg": "Invalid value",
+      "path": "address",
+      "location": "query"
+    }
+  ]
+}
+```
+
+#### Not found / geocoding failure (`404`)
+
+```json
+{
+  "message": "Coordinates not found"
+}
+```
+
+#### Invalid address in service (`404` currently)
+
+If address is empty/too short, service throws `Invalid address`.
+At the moment, controller catches all service errors and returns the same 404 response:
+
+```json
+{
+  "message": "Coordinates not found"
+}
+```
+
+### Why This Layered Design Is Good
+
+1. Route handles request shape + middleware chain
+2. Controller handles request/response logic and HTTP codes
+3. Service handles third-party API details
+4. Easier to swap providers (Google -> OpenStreetMap) without breaking route/controller
+
+### Notes and Improvements
+
+1. Key naming typo: `ltd` likely meant `lat`
+   - Keep as-is for now because frontend may already depend on `ltd`
+   - If you change it, update all consumers together
+
+2. Better status split (optional):
+   - Provider timeout/network issue could be `502`/`503` instead of `404`
+
+3. Add small in-memory caching (optional):
+   - Repeated same address lookups can be faster and reduce external API usage
+
+4. Nominatim fair-use:
+   - Keep valid User-Agent
+   - Avoid aggressive high-frequency calling
+
+5. Fallback behavior:
+  - If Nominatim gives empty results, Photon is queried automatically
+  - This improves success rate for short/ambiguous place names like "MG road"
+
+### Quick Usage Example (Frontend Axios)
+
+```javascript
+const token = localStorage.getItem('token');
+
+const res = await axios.get(
+  `${import.meta.env.VITE_BASE_URL}maps/get-coordinates`,
+  {
+    params: { address: 'Connaught Place, Delhi' },
+    headers: { Authorization: `Bearer ${token}` }
+  }
+);
+
+console.log(res.data); // { ltd: ..., lng: ... }
+```
+
+---
+
 ## Additional Notes
 
 _Add more backend development notes below as you learn..._
+
+---
+
+## Maps API - getDistanceTime Flow (Free Alternative to Google Distance Matrix)
+
+### Endpoint Overview
+
+This endpoint calculates **road distance** and **estimated travel time** between two addresses.
+
+- Route path: `GET /maps/get-distance-time`
+- Required query params: `origin`, `destination`
+- Protected route: Yes (requires logged-in user token)
+- Provider type: 100% free, no credit card
+
+### Why This Implementation
+
+Google Distance Matrix is paid in many production scenarios. To avoid cost while keeping similar behavior:
+
+1. Geocode addresses (address -> coordinates) using free providers
+2. Route coordinates (road distance/time) using free OSRM router
+
+This gives practical Google-like output for an Uber-style app without billing.
+
+### Where It Is Implemented
+
+1. Route layer: `Backend/routes/mapRoute.js`
+2. Controller layer: `Backend/controllers/mapController.js`
+3. Service layer: `Backend/services/mapsService.js`
+
+### Full Request Lifecycle (Step by Step)
+
+#### Step 1: Client sends request
+
+```http
+GET /maps/get-distance-time?origin=Connaught%20Place%20Delhi&destination=India%20Gate%20Delhi
+Authorization: Bearer <jwt_token>
+```
+
+#### Step 2: Route validation (`mapRoute.js`)
+
+```javascript
+query('origin').isString().isLength({ min: 3 })
+query('destination').isString().isLength({ min: 3 })
+```
+
+If invalid -> `400` with validation errors.
+
+#### Step 3: Auth middleware (`authMiddelware.js`)
+
+`authUser` verifies token and blocks unauthorized requests.
+
+#### Step 4: Controller (`mapController.js`)
+
+Controller flow:
+1. Validate request errors
+2. Read `origin` and `destination` from `req.query`
+3. Call service: `mapService.getDistanceTime(origin, destination)`
+4. Return `200` with distance/time payload
+5. On failure return `404` with message
+
+#### Step 5: Service logic (`mapsService.js`)
+
+Service performs a two-stage pipeline:
+
+1. **Geocode both addresses**
+   - Uses existing `getAddressCoordinate()`
+   - Primary: Nominatim
+   - Fallback: Photon
+
+2. **Route using OSRM**
+   - Calls: `https://router.project-osrm.org/route/v1/driving/{origin_lng},{origin_lat};{dest_lng},{dest_lat}?overview=false`
+   - OSRM returns route distance (meters) and duration (seconds)
+
+3. **Format output**
+   - Distance text: meters/km
+   - Duration text: mins/hr
+   - Keeps raw numeric values for calculations in frontend
+
+### Response Contract
+
+#### Success (`200`)
+
+```json
+{
+  "distance": {
+    "text": "4.2 km",
+    "value": 4245
+  },
+  "duration": {
+    "text": "6 mins",
+    "value": 337
+  },
+  "origin": {
+    "address": "Connaught Place Delhi",
+    "coordinates": {
+      "ltd": 28.6314022,
+      "lng": 77.2193791
+    }
+  },
+  "destination": {
+    "address": "India Gate Delhi",
+    "coordinates": {
+      "ltd": 28.6129332,
+      "lng": 77.2294928
+    }
+  }
+}
+```
+
+#### Validation failure (`400`)
+
+```json
+{
+  "errors": [
+    {
+      "msg": "Invalid value",
+      "path": "origin",
+      "location": "query"
+    }
+  ]
+}
+```
+
+#### Not found / routing-geocoding failure (`404`)
+
+```json
+{
+  "message": "Distance and time not found"
+}
+```
+
+### Quick Frontend Usage Example
+
+```javascript
+const token = localStorage.getItem('token');
+
+const res = await axios.get(
+  `${import.meta.env.VITE_BASE_URL}maps/get-distance-time`,
+  {
+    params: {
+      origin: 'Connaught Place, Delhi',
+      destination: 'India Gate, Delhi'
+    },
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  }
+);
+
+console.log(res.data.distance.text); // e.g. "4.2 km"
+console.log(res.data.duration.text); // e.g. "6 mins"
+```
+
+### Important Notes
+
+1. This is road-based routing (not straight-line).
+2. Public OSRM server is free but has fair-use limits.
+3. For heavy production traffic, self-host OSRM or add retry/caching.
+4. Key naming still uses `ltd` for compatibility with existing code.
+
+---
+
+## Maps API - getAutoCompleteSuggestions (Free Location Suggestions)
+
+### Endpoint Overview
+
+This endpoint provides address/location suggestions while user types in pickup/drop fields.
+
+- Route path: `GET /maps/get-suggestions`
+- Required query param: `input`
+- Protected route: Yes (requires logged-in user token)
+- Provider type: 100% free, no credit card
+
+### Why This Endpoint
+
+Google Places Autocomplete is paid in many cases. This endpoint gives a free autocomplete-like experience using OpenStreetMap ecosystem APIs.
+
+### Where It Is Implemented
+
+1. Route layer: `Backend/routes/mapRoute.js`
+2. Controller layer: `Backend/controllers/mapController.js`
+3. Service layer: `Backend/services/mapsService.js`
+
+### Full Request Lifecycle
+
+#### Step 1: Client sends request
+
+```http
+GET /maps/get-suggestions?input=Connaught
+Authorization: Bearer <jwt_token>
+```
+
+#### Step 2: Route validation (`mapRoute.js`)
+
+```javascript
+query('input').isString().isLength({ min: 3 })
+```
+
+If invalid -> `400` with validation errors.
+
+#### Step 3: Auth middleware (`authMiddelware.js`)
+
+`authUser` verifies token and allows only authenticated requests.
+
+#### Step 4: Controller (`mapController.js`)
+
+Controller flow:
+1. Reads validation errors
+2. Extracts `input` from `req.query`
+3. Calls `mapService.getAutoCompleteSuggestions(input)`
+4. Returns `200` with suggestion list
+5. Returns `404` if no suggestions found
+
+#### Step 5: Service (`mapsService.js`)
+
+Service strategy:
+
+1. Normalize and validate input
+   - Trim whitespace
+   - Reject short values (`< 3`)
+
+2. Primary provider: Photon
+   - URL: `https://photon.komoot.io/api/?q=<input>&limit=5`
+   - Better suited for search suggestion behavior
+
+3. Fallback provider: Nominatim
+   - Used only if Photon returns no suggestions
+   - URL: `https://nominatim.openstreetmap.org/search?format=json&limit=5&q=<input>`
+
+4. Response mapping
+   - Deduplicates by description
+   - Returns max 5 suggestions
+   - Output shape includes:
+     - `description`
+     - `placeId`
+     - `ltd`
+     - `lng`
+
+### Response Contract
+
+#### Success (`200`)
+
+```json
+[
+  {
+    "description": "Connaught Place, Delhi, India",
+    "placeId": 561299050,
+    "ltd": 28.6314022,
+    "lng": 77.2193791
+  }
+]
+```
+
+#### Validation failure (`400`)
+
+```json
+{
+  "errors": [
+    {
+      "msg": "Invalid value",
+      "path": "input",
+      "location": "query"
+    }
+  ]
+}
+```
+
+#### No suggestions (`404`)
+
+```json
+{
+  "message": "Suggestions not found"
+}
+```
+
+### Frontend Usage Example
+
+```javascript
+const token = localStorage.getItem('token');
+
+const res = await axios.get(
+  `${import.meta.env.VITE_BASE_URL}maps/get-suggestions`,
+  {
+    params: { input: 'Connaught' },
+    headers: { Authorization: `Bearer ${token}` }
+  }
+);
+
+console.log(res.data); // Array of suggestions
+```
+
+### Important Notes
+
+1. This is free and works without billing/credit card.
+2. Suggestion quality can differ from Google Places in some regions.
+3. Apply debounce on frontend (e.g. 250-400ms) to avoid too many calls while typing.
+4. Keep `ltd` key for compatibility with current frontend/backend conventions.
 
