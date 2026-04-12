@@ -990,5 +990,171 @@ In your Home page, `panelRef` is used to give GSAP a direct handle to the panel 
 - Best for DOM access and integration with libraries like GSAP.
 - In this project, it is used in Home page to animate the bottom panel smoothly.
 
+---
+
+## Live Tracking (Free Map + Real-Time Location)
+
+### What This Feature Does
+
+The `LiveTracking` component shows a live map and continuously tracks the user's current location.
+
+In simple terms:
+1. It opens a map
+2. It asks browser for location permission
+3. It places a marker on your current position
+4. It updates that marker whenever your location changes
+
+### Why We Switched to This Approach
+
+Earlier map setup depended on Google Maps API key.
+
+Now this feature is implemented using a **fully free stack**:
+- OpenStreetMap tiles (free)
+- Leaflet map engine (free)
+- react-leaflet React wrapper (free)
+- Browser Geolocation API (built-in, free)
+
+No credit card, no paid map key required.
+
+### Libraries Used
+
+```javascript
+import { MapContainer, TileLayer, CircleMarker, useMap } from 'react-leaflet'
+import 'leaflet/dist/leaflet.css'
+```
+
+- `MapContainer`: creates the map
+- `TileLayer`: loads map tiles (OpenStreetMap)
+- `CircleMarker`: shows current position visually
+- `useMap`: gives direct map instance access (for recentering)
+
+### Step-by-Step Implementation Logic
+
+#### 1. Default fallback center
+
+```javascript
+const defaultCenter = { lat: -3.745, lng: -38.523 }
+```
+
+This is used initially before actual geolocation resolves.
+
+#### 2. State for current position
+
+```javascript
+const [currentPosition, setCurrentPosition] = useState(defaultCenter)
+```
+
+This holds the live coordinates that map + marker depend on.
+
+#### 3. Get and watch geolocation
+
+```javascript
+navigator.geolocation.getCurrentPosition(updatePosition)
+const watchId = navigator.geolocation.watchPosition(updatePosition, onError, options)
+```
+
+Why both are used:
+- `getCurrentPosition` gives immediate one-time location
+- `watchPosition` keeps listening and updates in real time
+
+#### 4. Update state on every location change
+
+```javascript
+const updatePosition = (position) => {
+  const { latitude, longitude } = position.coords
+  setCurrentPosition({ lat: latitude, lng: longitude })
+}
+```
+
+React re-renders automatically, so marker position changes live.
+
+#### 5. Cleanup on unmount
+
+```javascript
+return () => navigator.geolocation.clearWatch(watchId)
+```
+
+This prevents memory leaks and duplicate watchers.
+
+#### 6. Recenter map when user moves
+
+Custom helper component:
+
+```javascript
+const RecenterMap = ({ center }) => {
+  const map = useMap()
+  useEffect(() => {
+    map.setView([center.lat, center.lng])
+  }, [center, map])
+  return null
+}
+```
+
+This ensures map camera follows location updates, not just marker updates.
+
+### Map Rendering Structure
+
+```jsx
+<MapContainer center={[currentPosition.lat, currentPosition.lng]} zoom={15}>
+  <TileLayer url='https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png' />
+  <RecenterMap center={currentPosition} />
+  <CircleMarker center={[currentPosition.lat, currentPosition.lng]} radius={8} />
+</MapContainer>
+```
+
+### Why This Works Well for Uber-like App
+
+1. Real-time position updates for live tracking
+2. Free map tiles from OpenStreetMap
+3. No API key dependency for map rendering
+4. Lightweight and React-friendly integration
+5. Easy to extend with route path, captain marker, pickup marker, etc.
+
+### Permissions and Browser Behavior
+
+- User must allow location permission in browser.
+- On denied permission, tracking cannot work.
+- Error callback logs geolocation failures:
+
+```javascript
+(error) => {
+  console.error('Geolocation error:', error.message)
+}
+```
+
+### Common Issues and Fixes
+
+1. **Map not visible**
+   - Ensure parent container has fixed height/width.
+   - `MapContainer` needs explicit dimensions.
+
+2. **Location not updating**
+   - Check if permission is denied.
+   - Verify `watchPosition` cleanup isn’t called too early.
+
+3. **Map loads but blank tiles**
+   - Check internet/network restrictions.
+   - Ensure tile URL is reachable.
+
+4. **Marker updates but map doesn't move**
+   - Use `RecenterMap` with `map.setView(...)`.
+
+### How This Connects to Backend in Future
+
+Current component tracks and displays local user position on frontend.
+
+Next scalable step:
+1. Capture updated coordinates from `watchPosition`
+2. Emit via socket to backend
+3. Save/update captain location in DB
+4. Broadcast to users for nearby captain tracking
+
+### Quick Summary
+
+- This feature provides free live map tracking without Google billing.
+- Uses browser geolocation + OpenStreetMap + react-leaflet.
+- Keeps marker and map center synced with user movement.
+- Clean lifecycle with proper geolocation watcher cleanup.
+
 _Add more frontend notes as you learn..._
 
