@@ -1,14 +1,35 @@
-import React from 'react'
 import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
+import axios from 'axios'
+import { useNavigate } from 'react-router-dom'
 
-const ConfimRidePopUp = (props) => {
-    const [opt,setOtp] = useState('')
-    const submitHandler = (e) =>{
-        e.preventDefault();
+const ConfirmRidePopUp = (props) => {
+    const [ otp, setOtp ] = useState('')
+    const navigate = useNavigate()
+
+    const submitHander = async (e) => {
+        e.preventDefault()
+
+        const response = await axios.get(`${import.meta.env.VITE_BASE_URL}/rides/start-ride`, {
+            params: {
+                rideId: props.ride._id,
+                otp: otp
+            },
+            headers: {
+                Authorization: `Bearer ${localStorage.getItem('token')}`
+            }
+        })
+
+        if (response.status === 200) {
+            props.setConfirmRidePopupPanel(false)
+            props.setRidePopupPanel(false)
+            navigate('/captain-riding', { state: { ride: props.ride } })
+        }
+
+
     }
-  return (
-    <div>
+    return (
+        <div>
             <h5 className='p-1 text-center w-[93%] absolute top-0' onClick={() => {
                 props.setRidePopupPanel(false)
             }}><i className="text-3xl text-gray-200 ri-arrow-down-wide-line"></i></h5>
@@ -60,7 +81,7 @@ const ConfimRidePopUp = (props) => {
                 </div>
             </div>
         </div>
-  )
+    )
 }
 
-export default ConfimRidePopUp
+export default ConfirmRidePopUp
