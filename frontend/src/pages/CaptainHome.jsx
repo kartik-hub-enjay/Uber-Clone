@@ -4,11 +4,13 @@ import CaptainDetails from '../components/CaptainDetails'
 import RidePopUp from '../components/RidePopUp'
 import { useGSAP } from '@gsap/react'
 import gsap from 'gsap'
-import ConfirmRidePopUp from '../components/ConfirmRidePopUp'
+import ConfirmRidePopUp from '../components/ConfimRidePopUp'
 import { useEffect, useContext } from 'react'
 import { SocketContext } from '../context/SocketContext'
-import { CaptainDataContext } from '../context/CapatainContext'
+import { CaptainDataContext } from '../context/CaptainContext'
 import axios from 'axios'
+import uberLogo from '../assets/uber-logo.png'
+import mapGif from '../assets/map.gif'
 
 const CaptainHome = () => {
 
@@ -56,21 +58,24 @@ const CaptainHome = () => {
     })
 
     async function confirmRide() {
+        try {
+            const response = await axios.post(`${import.meta.env.VITE_BASE_URL}api/rides/confirm`, {
+                rideId: ride._id,
+                captainId: captain._id,
+            }, {
+                headers: {
+                    Authorization: `Bearer ${localStorage.getItem('token')}`
+                }
+            })
 
-        const response = await axios.post(`${import.meta.env.VITE_BASE_URL}/rides/confirm`, {
-
-            rideId: ride._id,
-            captainId: captain._id,
-
-
-        }, {
-            headers: {
-                Authorization: `Bearer ${localStorage.getItem('token')}`
+            if (response.status === 200) {
+                setRidePopupPanel(false)
+                setConfirmRidePopupPanel(true)
             }
-        })
-
-        setRidePopupPanel(false)
-        setConfirmRidePopupPanel(true)
+        } catch (error) {
+            console.error('Confirm ride failed:', error?.response?.data || error.message)
+            setConfirmRidePopupPanel(false)
+        }
 
     }
 
@@ -102,13 +107,13 @@ const CaptainHome = () => {
     return (
         <div className='h-screen'>
             <div className='fixed p-6 top-0 flex items-center justify-between w-screen'>
-                <img className='w-16' src="https://upload.wikimedia.org/wikipedia/commons/c/cc/Uber_logo_2018.png" alt="" />
+                <img className='w-16' src={uberLogo} alt="" />
                 <Link to='/captain-home' className=' h-10 w-10 bg-white flex items-center justify-center rounded-full'>
                     <i className="text-lg font-medium ri-logout-box-r-line"></i>
                 </Link>
             </div>
             <div className='h-3/5'>
-                <img className='h-full w-full object-cover' src="https://miro.medium.com/v2/resize:fit:1400/0*gwMx05pqII5hbfmX.gif" alt="" />
+                <img className='h-full w-full object-cover' src={mapGif} alt="" />
 
             </div>
             <div className='h-2/5 p-6'>

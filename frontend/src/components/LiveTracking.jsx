@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { CircleMarker, MapContainer, TileLayer, useMap } from 'react-leaflet'
+import { CircleMarker, MapContainer, TileLayer, useMap, ZoomControl } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 
 const defaultCenter = {
@@ -53,11 +53,13 @@ const LiveTracking = () => {
             zoom={15}
             style={{ width: '100%', height: '100%' }}
             scrollWheelZoom
+            zoomControl={false}
         >
             <TileLayer
                 attribution='&copy; OpenStreetMap contributors'
                 url='https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
             />
+            <ZoomControl position='bottomright' />
             <RecenterMap center={currentPosition} />
             <CircleMarker
                 center={[currentPosition.lat, currentPosition.lng]}

@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
 import axios from 'axios'
 import { useNavigate } from 'react-router-dom'
+import userImage from '../assets/user-image.webp'
 
 const ConfirmRidePopUp = (props) => {
     const [ otp, setOtp ] = useState('')
@@ -10,7 +11,7 @@ const ConfirmRidePopUp = (props) => {
     const submitHander = async (e) => {
         e.preventDefault()
 
-        const response = await axios.get(`${import.meta.env.VITE_BASE_URL}/rides/start-ride`, {
+        const response = await axios.get(`${import.meta.env.VITE_BASE_URL}api/rides/start-ride`, {
             params: {
                 rideId: props.ride._id,
                 otp: otp
@@ -36,7 +37,7 @@ const ConfirmRidePopUp = (props) => {
             <h3 className='text-2xl font-semibold mb-5'>Confirm this ride to Start</h3>
             <div className='flex items-center justify-between p-3 border-2 border-yellow-400 rounded-lg mt-4'>
                 <div className='flex items-center gap-3 '>
-                    <img className='h-12 rounded-full object-cover w-12' src="https://i.pinimg.com/236x/af/26/28/af26280b0ca305be47df0b799ed1b12b.jpg" alt="" />
+                    <img className='h-12 rounded-full object-cover w-12' src={userImage} alt="user image" />
                     <h2 className='text-lg font-medium capitalize'>{props.ride?.user.fullname.firstname}</h2>
                 </div>
                 <h5 className='text-lg font-semibold'>2.2 KM</h5>

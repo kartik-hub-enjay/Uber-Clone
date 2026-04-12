@@ -1547,4 +1547,346 @@ curl -X POST http://localhost:3000/api/rides/create \
 
 ---
 
-_More endpoints documentation coming soon..._
+### 2. Get Fare Estimates
+
+**Endpoint:** `GET /api/rides/get-fare`
+
+**Description:**  
+Returns fare estimates for all supported vehicle types (`auto`, `car`, `motorcycle`) for a given pickup and destination.
+
+**Request Headers:**
+```
+Authorization: Bearer <your_jwt_token>
+```
+
+**Query Params:**
+
+| Param | Type | Required | Validation | Description |
+|------|------|----------|------------|-------------|
+| `pickup` | String | Yes | Min 3 characters | Pickup location |
+| `destination` | String | Yes | Min 3 characters | Drop location |
+
+**Success Response:**
+
+**Status Code:** `200 OK`
+
+```json
+{
+  "auto": 98,
+  "car": 141,
+  "motorcycle": 76,
+  "moto": 76
+}
+```
+
+**Error Responses:**
+
+**Status Code:** `400 Bad Request`
+```json
+{
+  "errors": [
+    {
+      "msg": "Invalid pickup address",
+      "path": "pickup",
+      "location": "query"
+    }
+  ]
+}
+```
+
+**Status Code:** `500 Internal Server Error`
+```json
+{
+  "message": "Pickup and destination are required"
+}
+```
+
+**Example Request (cURL):**
+```bash
+curl -X GET "http://localhost:3000/api/rides/get-fare?pickup=World%20Trade%20Park%2C%20Jaipur&destination=Chandpole%2C%20Jaipur" \
+  -H "Authorization: Bearer <token>"
+```
+
+---
+
+### 3. Confirm Ride (Captain)
+
+**Endpoint:** `POST /api/rides/confirm`
+
+**Description:**  
+Captain accepts a pending ride. On success, backend emits the real-time `ride-confirmed` socket event to the user.
+
+**Request Headers:**
+```
+Content-Type: application/json
+Authorization: Bearer <captain_jwt_token>
+```
+
+**Request Body:**
+```json
+{
+  "rideId": "67f7d8f6a57e7f1c2e8f1234"
+}
+```
+
+**Required Fields:**
+
+| Field | Type | Required | Validation | Description |
+|-------|------|----------|------------|-------------|
+| `rideId` | String | Yes | Valid MongoDB ObjectId | Ride ID to accept |
+
+**Success Response:**
+
+**Status Code:** `200 OK`
+
+```json
+{
+  "_id": "67f7d8f6a57e7f1c2e8f1234",
+  "user": {
+    "_id": "67f7d8c4a57e7f1c2e8f9999",
+    "fullname": {
+      "firstname": "Rahul",
+      "lastname": "Sharma"
+    },
+    "email": "rahul@example.com"
+  },
+  "captain": {
+    "_id": "67f7d901a57e7f1c2e8f7777",
+    "fullname": {
+      "firstname": "Amit",
+      "lastname": "Kumar"
+    },
+    "email": "amit@example.com"
+  },
+  "pickup": "World Trade Park, Jaipur",
+  "destination": "Chandpole, Jaipur",
+  "fare": 121,
+  "status": "accepted",
+  "otp": "483920"
+}
+```
+
+**Error Responses:**
+
+**Status Code:** `400 Bad Request`
+```json
+{
+  "errors": [
+    {
+      "msg": "Invalid ride id",
+      "path": "rideId",
+      "location": "body"
+    }
+  ]
+}
+```
+
+**Status Code:** `500 Internal Server Error`
+```json
+{
+  "message": "Ride not found"
+}
+```
+
+**Example Request (cURL):**
+```bash
+curl -X POST http://localhost:3000/api/rides/confirm \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <captain_token>" \
+  -d '{"rideId":"67f7d8f6a57e7f1c2e8f1234"}'
+```
+
+---
+
+### 4. Start Ride (Captain)
+
+**Endpoint:** `GET /api/rides/start-ride`
+
+**Description:**  
+Starts an accepted ride after OTP verification. On success, backend emits `ride-started` to the user.
+
+**Request Headers:**
+```
+Authorization: Bearer <captain_jwt_token>
+```
+
+**Query Params:**
+
+| Param | Type | Required | Validation | Description |
+|------|------|----------|------------|-------------|
+| `rideId` | String | Yes | Valid MongoDB ObjectId | Ride ID |
+| `otp` | String | Yes | Exactly 6 characters | Ride OTP provided by user |
+
+**Success Response:**
+
+**Status Code:** `200 OK`
+
+```json
+{
+  "_id": "67f7d8f6a57e7f1c2e8f1234",
+  "user": {
+    "_id": "67f7d8c4a57e7f1c2e8f9999",
+    "fullname": {
+      "firstname": "Rahul",
+      "lastname": "Sharma"
+    },
+    "email": "rahul@example.com"
+  },
+  "captain": {
+    "_id": "67f7d901a57e7f1c2e8f7777",
+    "fullname": {
+      "firstname": "Amit",
+      "lastname": "Kumar"
+    },
+    "email": "amit@example.com"
+  },
+  "pickup": "World Trade Park, Jaipur",
+  "destination": "Chandpole, Jaipur",
+  "fare": 121,
+  "status": "accepted",
+  "otp": "483920"
+}
+```
+
+**Error Responses:**
+
+**Status Code:** `400 Bad Request`
+```json
+{
+  "errors": [
+    {
+      "msg": "Invalid OTP",
+      "path": "otp",
+      "location": "query"
+    }
+  ]
+}
+```
+
+**Status Code:** `500 Internal Server Error`
+```json
+{
+  "message": "Ride not accepted"
+}
+```
+
+**Possible `500` messages from service:**
+- `Ride id and OTP are required`
+- `Ride not found`
+- `Ride not accepted`
+- `Invalid OTP`
+
+**Example Request (cURL):**
+```bash
+curl -X GET "http://localhost:3000/api/rides/start-ride?rideId=67f7d8f6a57e7f1c2e8f1234&otp=483920" \
+  -H "Authorization: Bearer <captain_token>"
+```
+
+---
+
+### 5. End Ride (Captain)
+
+**Endpoint:** `POST /api/rides/end-ride`
+
+**Description:**  
+Ends an ongoing ride. On success, backend emits `ride-ended` to the user.
+
+**Request Headers:**
+```
+Content-Type: application/json
+Authorization: Bearer <captain_jwt_token>
+```
+
+**Request Body:**
+```json
+{
+  "rideId": "67f7d8f6a57e7f1c2e8f1234"
+}
+```
+
+**Required Fields:**
+
+| Field | Type | Required | Validation | Description |
+|-------|------|----------|------------|-------------|
+| `rideId` | String | Yes | Valid MongoDB ObjectId | Ride ID to complete |
+
+**Success Response:**
+
+**Status Code:** `200 OK`
+
+```json
+{
+  "_id": "67f7d8f6a57e7f1c2e8f1234",
+  "user": {
+    "_id": "67f7d8c4a57e7f1c2e8f9999",
+    "fullname": {
+      "firstname": "Rahul",
+      "lastname": "Sharma"
+    },
+    "email": "rahul@example.com"
+  },
+  "captain": {
+    "_id": "67f7d901a57e7f1c2e8f7777",
+    "fullname": {
+      "firstname": "Amit",
+      "lastname": "Kumar"
+    },
+    "email": "amit@example.com"
+  },
+  "pickup": "World Trade Park, Jaipur",
+  "destination": "Chandpole, Jaipur",
+  "fare": 121,
+  "status": "ongoing",
+  "otp": "483920"
+}
+```
+
+**Error Responses:**
+
+**Status Code:** `400 Bad Request`
+```json
+{
+  "errors": [
+    {
+      "msg": "Invalid ride id",
+      "path": "rideId",
+      "location": "body"
+    }
+  ]
+}
+```
+
+**Status Code:** `500 Internal Server Error`
+```json
+{
+  "message": "Ride not ongoing"
+}
+```
+
+**Possible `500` messages from service:**
+- `Ride id is required`
+- `Ride not found`
+- `Ride not ongoing`
+
+**Example Request (cURL):**
+```bash
+curl -X POST http://localhost:3000/api/rides/end-ride \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <captain_token>" \
+  -d '{"rideId":"67f7d8f6a57e7f1c2e8f1234"}'
+```
+
+---
+
+## Real-time Socket Events Used by Ride Flow
+
+The ride lifecycle also triggers these Socket.IO events:
+
+| Event | Triggered From | Sent To | Purpose |
+|------|-----------------|---------|---------|
+| `new-ride` | `POST /api/rides/create` | Nearby captains | Notify available ride |
+| `ride-confirmed` | `POST /api/rides/confirm` | User | Notify captain accepted ride |
+| `ride-started` | `GET /api/rides/start-ride` | User | Notify ride has started |
+| `ride-ended` | `POST /api/rides/end-ride` | User | Notify ride is completed |
+
+These are emitted from `sendMessageToSocketId(...)` in the ride controller flow.
