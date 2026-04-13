@@ -10,6 +10,8 @@ const FinishRide = (props) => {
     const navigate = useNavigate()
 
     async function endRide() {
+        const captainAuthToken = localStorage.getItem('captainToken') || localStorage.getItem('token')
+
         const response = await axios.post(`${import.meta.env.VITE_BASE_URL}api/rides/end-ride`, {
 
             rideId: props.ride._id
@@ -17,7 +19,7 @@ const FinishRide = (props) => {
 
         }, {
             headers: {
-                Authorization: `Bearer ${localStorage.getItem('token')}`
+                Authorization: `Bearer ${captainAuthToken}`
             }
         })
 
