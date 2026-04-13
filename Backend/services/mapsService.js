@@ -142,11 +142,25 @@ module.exports.getAutoCompleteSuggestions = async (input) => {
     const nominatimUrl = `https://nominatim.openstreetmap.org/search?format=json&limit=5&q=${encodeURIComponent(normalizedInput)}`;
     const mapsCoUrl = `https://geocode.maps.co/search?q=${encodeURIComponent(normalizedInput)}`;
 
-    try {
-        const suggestions = [];
-        const seen = new Set();
+    const suggestions = [];
+    const seen = new Set();
 
-        // Primary: Photon (better for type-ahead style suggestions)
+    const addSuggestion = (description, placeId, lat, lon) => {
+        if (!description || seen.has(description)) {
+            return;
+        }
+
+        seen.add(description);
+        suggestions.push({
+            description,
+            placeId: placeId || description,
+            ltd: typeof lat === 'number' ? lat : Number(lat),
+            lng: typeof lon === 'number' ? lon : Number(lon)
+        });
+    };
+
+    // Provider 1: Photon
+    try {
         const photonResponse = await axios.get(photonUrl, {
             headers: {
                 'User-Agent': 'Uber-Clone/1.0 (learning project autocomplete)'
@@ -154,39 +168,23 @@ module.exports.getAutoCompleteSuggestions = async (input) => {
             timeout: 8000
         });
 
-        if (
-            photonResponse.data &&
-            Array.isArray(photonResponse.data.features)
-        ) {
+        if (photonResponse.data && Array.isArray(photonResponse.data.features)) {
             photonResponse.data.features.forEach((feature) => {
                 const props = feature.properties || {};
                 const coords = feature.geometry?.coordinates || [];
-                const lon = coords[0];
-                const lat = coords[1];
-
-                const parts = [
-                    props.name,
-                    props.city,
-                    props.state,
-                    props.country
-                ].filter(Boolean);
-
+                const parts = [ props.name, props.city, props.state, props.country ].filter(Boolean);
                 const description = parts.join(', ');
 
-                if (description && !seen.has(description)) {
-                    seen.add(description);
-                    suggestions.push({
-                        description,
-                        placeId: props.osm_id || props.osm_key || description,
-                        ltd: typeof lat === 'number' ? lat : null,
-                        lng: typeof lon === 'number' ? lon : null
-                    });
-                }
+                addSuggestion(description, props.osm_id || props.osm_key, coords[1], coords[0]);
             });
         }
+    } catch (error) {
+        console.error('Autocomplete photon error:', error.response?.status || error.message);
+    }
 
-        // Fallback/augment: Nominatim if Photon results are empty.
-        if (suggestions.length === 0) {
+    // Provider 2: Nominatim
+    if (suggestions.length === 0) {
+        try {
             const nominatimResponse = await axios.get(nominatimUrl, {
                 headers: {
                     'User-Agent': 'Uber-Clone/1.0 (learning project geocoder)'
@@ -196,45 +194,31 @@ module.exports.getAutoCompleteSuggestions = async (input) => {
 
             if (Array.isArray(nominatimResponse.data)) {
                 nominatimResponse.data.forEach((item) => {
-                    const description = item.display_name;
-                    if (description && !seen.has(description)) {
-                        seen.add(description);
-                        suggestions.push({
-                            description,
-                            placeId: item.place_id || description,
-                            ltd: Number(item.lat),
-                            lng: Number(item.lon)
-                        });
-                    }
+                    addSuggestion(item.display_name, item.place_id, item.lat, item.lon);
                 });
             }
+        } catch (error) {
+            console.error('Autocomplete nominatim error:', error.response?.status || error.message);
         }
+    }
 
-        // Additional fallback: geocode.maps.co if previous providers return nothing.
-        if (suggestions.length === 0) {
+    // Provider 3: maps.co
+    if (suggestions.length === 0) {
+        try {
             const mapsCoResponse = await axios.get(mapsCoUrl, { timeout: 8000 });
 
             if (Array.isArray(mapsCoResponse.data)) {
                 mapsCoResponse.data.forEach((item) => {
-                    const description = item.display_name;
-                    if (description && !seen.has(description)) {
-                        seen.add(description);
-                        suggestions.push({
-                            description,
-                            placeId: item.place_id || description,
-                            ltd: Number(item.lat),
-                            lng: Number(item.lon)
-                        });
-                    }
+                    addSuggestion(item.display_name, item.place_id, item.lat, item.lon);
                 });
             }
+        } catch (error) {
+            console.error('Autocomplete maps.co error:', error.response?.status || error.message);
         }
-
-        return suggestions.slice(0, 5);
-    } catch (error) {
-        console.error('Autocomplete error:', error.response?.status || error.message);
-        throw error;
     }
+
+    // Return empty array on provider failures so frontend doesn't break with 500.
+    return suggestions.slice(0, 5);
 };
 
 module.exports.getCaptainsInTheRadius = async (ltd, lng, radius) => {
