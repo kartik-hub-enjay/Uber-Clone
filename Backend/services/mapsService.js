@@ -140,13 +140,19 @@ module.exports.getAutoCompleteSuggestions = async (input) => {
 
     const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(normalizedInput)}&limit=5`;
     const nominatimUrl = `https://nominatim.openstreetmap.org/search?format=json&limit=5&q=${encodeURIComponent(normalizedInput)}`;
+    const mapsCoUrl = `https://geocode.maps.co/search?q=${encodeURIComponent(normalizedInput)}`;
 
     try {
         const suggestions = [];
         const seen = new Set();
 
         // Primary: Photon (better for type-ahead style suggestions)
-        const photonResponse = await axios.get(photonUrl, { timeout: 8000 });
+        const photonResponse = await axios.get(photonUrl, {
+            headers: {
+                'User-Agent': 'Uber-Clone/1.0 (learning project autocomplete)'
+            },
+            timeout: 8000
+        });
 
         if (
             photonResponse.data &&
@@ -204,8 +210,24 @@ module.exports.getAutoCompleteSuggestions = async (input) => {
             }
         }
 
+        // Additional fallback: geocode.maps.co if previous providers return nothing.
         if (suggestions.length === 0) {
-            throw new Error('Unable to fetch suggestions');
+            const mapsCoResponse = await axios.get(mapsCoUrl, { timeout: 8000 });
+
+            if (Array.isArray(mapsCoResponse.data)) {
+                mapsCoResponse.data.forEach((item) => {
+                    const description = item.display_name;
+                    if (description && !seen.has(description)) {
+                        seen.add(description);
+                        suggestions.push({
+                            description,
+                            placeId: item.place_id || description,
+                            ltd: Number(item.lat),
+                            lng: Number(item.lon)
+                        });
+                    }
+                });
+            }
         }
 
         return suggestions.slice(0, 5);

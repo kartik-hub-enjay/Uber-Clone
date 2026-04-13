@@ -47,6 +47,12 @@ module.exports.getAutoCompleteSuggestions = async (req,res,next) => {
         const suggestions = await mapService.getAutoCompleteSuggestions(input);
         res.status(200).json(suggestions);
     } catch (error) {
-        res.status(404).json({ message: 'Suggestions not found' });
+        const message = error?.message || 'Unable to fetch suggestions';
+
+        if (message === 'Invalid input') {
+            return res.status(400).json({ message });
+        }
+
+        return res.status(500).json({ message: 'Unable to fetch suggestions' });
     }
 }
