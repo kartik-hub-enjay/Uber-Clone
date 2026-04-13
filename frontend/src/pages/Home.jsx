@@ -26,6 +26,10 @@ const Home = () => {
     const waitingForDriverRef = useRef(null)
     const panelRef = useRef(null)
     const panelCloseRef = useRef(null)
+    const pickupDebounceRef = useRef(null)
+    const destinationDebounceRef = useRef(null)
+    const pickupAbortRef = useRef(null)
+    const destinationAbortRef = useRef(null)
     const [ vehiclePanel, setVehiclePanel ] = useState(false)
     const [ confirmRidePanel, setConfirmRidePanel ] = useState(false)
     const [ vehicleFound, setVehicleFound ] = useState(false)
@@ -45,6 +49,15 @@ const Home = () => {
     useEffect(() => {
         socket.emit("join", { userType: "user", userId: user._id })
     }, [ user ])
+
+    useEffect(() => {
+        return () => {
+            if (pickupDebounceRef.current) clearTimeout(pickupDebounceRef.current)
+            if (destinationDebounceRef.current) clearTimeout(destinationDebounceRef.current)
+            if (pickupAbortRef.current) pickupAbortRef.current.abort()
+            if (destinationAbortRef.current) destinationAbortRef.current.abort()
+        }
+    }, [])
 
     socket.on('ride-confirmed', ride => {
 
@@ -67,23 +80,33 @@ const Home = () => {
         setPanelOpen(true)
         setActiveField('pickup')
 
+        if (pickupDebounceRef.current) clearTimeout(pickupDebounceRef.current)
+        if (pickupAbortRef.current) pickupAbortRef.current.abort()
+
         if (value.trim().length < 3) {
             setPickupSuggestions([])
             return
         }
 
-        try {
-            const response = await axios.get(`${import.meta.env.VITE_BASE_URL}api/maps/get-suggestions`, {
-                params: { input: value },
-                headers: {
-                    Authorization: `Bearer ${localStorage.getItem('token')}`
-                }
+        pickupDebounceRef.current = setTimeout(async () => {
+            const controller = new AbortController()
+            pickupAbortRef.current = controller
 
-            })
-            setPickupSuggestions(response.data)
-        } catch {
-            // handle error
-        }
+            try {
+                const response = await axios.get(`${import.meta.env.VITE_BASE_URL}api/maps/get-suggestions`, {
+                    params: { input: value },
+                    headers: {
+                        Authorization: `Bearer ${localStorage.getItem('token')}`
+                    },
+                    signal: controller.signal
+                })
+                setPickupSuggestions(response.data)
+            } catch (error) {
+                if (error?.code !== 'ERR_CANCELED') {
+                    setPickupSuggestions([])
+                }
+            }
+        }, 350)
     }
 
     const handleDestinationChange = async (e) => {
@@ -92,22 +115,33 @@ const Home = () => {
         setPanelOpen(true)
         setActiveField('destination')
 
+        if (destinationDebounceRef.current) clearTimeout(destinationDebounceRef.current)
+        if (destinationAbortRef.current) destinationAbortRef.current.abort()
+
         if (value.trim().length < 3) {
             setDestinationSuggestions([])
             return
         }
 
-        try {
-            const response = await axios.get(`${import.meta.env.VITE_BASE_URL}api/maps/get-suggestions`, {
-                params: { input: value },
-                headers: {
-                    Authorization: `Bearer ${localStorage.getItem('token')}`
+        destinationDebounceRef.current = setTimeout(async () => {
+            const controller = new AbortController()
+            destinationAbortRef.current = controller
+
+            try {
+                const response = await axios.get(`${import.meta.env.VITE_BASE_URL}api/maps/get-suggestions`, {
+                    params: { input: value },
+                    headers: {
+                        Authorization: `Bearer ${localStorage.getItem('token')}`
+                    },
+                    signal: controller.signal
+                })
+                setDestinationSuggestions(response.data)
+            } catch (error) {
+                if (error?.code !== 'ERR_CANCELED') {
+                    setDestinationSuggestions([])
                 }
-            })
-            setDestinationSuggestions(response.data)
-        } catch {
-            // handle error
-        }
+            }
+        }, 350)
     }
 
     const submitHandler = (e) => {
