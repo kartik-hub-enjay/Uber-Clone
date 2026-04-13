@@ -32,7 +32,7 @@ const CaptainRiding = () => {
     return (
         <div className='h-screen relative flex flex-col justify-end'>
 
-            <div className='fixed p-6 top-0 flex items-center justify-between w-screen'>
+            <div className='fixed inset-x-0 mx-auto max-w-107.5 p-6 top-0 flex items-center justify-between w-full'>
                 <img className='w-16' src={uberLogo} alt="" />
                 <Link to='/captain-home' className=' h-10 w-10 bg-white flex items-center justify-center rounded-full'>
                     <i className="text-lg font-medium ri-logout-box-r-line"></i>
@@ -50,13 +50,13 @@ const CaptainRiding = () => {
                 <h4 className='text-xl font-semibold'>{'4 KM away'}</h4>
                 <button className=' bg-green-600 text-white font-semibold p-3 px-10 rounded-lg'>Complete Ride</button>
             </div>
-            <div ref={finishRidePanelRef} className='fixed w-full z-[500] bottom-0 translate-y-full bg-white px-3 py-10 pt-12'>
+            <div ref={finishRidePanelRef} className='fixed inset-x-0 mx-auto max-w-107.5 w-full z-500 bottom-0 translate-y-full bg-white px-3 py-10 pt-12'>
                 <FinishRide
                     ride={rideData}
                     setFinishRidePanel={setFinishRidePanel} />
             </div>
 
-            <div className='h-screen fixed w-screen top-0 z-[-1]'>
+            <div className='h-screen fixed inset-x-0 mx-auto max-w-107.5 w-full top-0 z-[-1]'>
                 <LiveTracking />
             </div>
 
