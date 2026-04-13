@@ -7,8 +7,7 @@ const SUGGESTION_CACHE_TTL_MS = 5 * 60 * 1000;
 const coordinateCache = new Map();
 const COORDINATE_CACHE_TTL_MS = 30 * 60 * 1000;
 const providerBackoffUntil = {
-    photon: 0,
-    nominatim: 0
+    geoapify: 0
 };
 
 module.exports.getAddressCoordinate = async (address) => {
@@ -25,9 +24,38 @@ module.exports.getAddressCoordinate = async (address) => {
     }
 
     const openMeteoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(normalizedAddress)}&count=1&language=en&format=json`;
-    const nominatimUrl = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(normalizedAddress)}`;
+    const geoapifyKey = process.env.GEOAPIFY_API_KEY;
+    const geoapifyUrl = geoapifyKey
+        ? `https://api.geoapify.com/v1/geocode/search?text=${encodeURIComponent(normalizedAddress)}&limit=1&apiKey=${geoapifyKey}`
+        : null;
 
-    // Provider 1: Open-Meteo (free, no key)
+    // Provider 1: Geoapify (free tier, no credit card required)
+    if (geoapifyUrl && Date.now() > providerBackoffUntil.geoapify) {
+        try {
+            const geoapifyResponse = await axios.get(geoapifyUrl, { timeout: 8000 });
+            const feature = geoapifyResponse.data?.features?.[0];
+            const props = feature?.properties;
+
+            if (props && Number.isFinite(Number(props.lat)) && Number.isFinite(Number(props.lon))) {
+                const coords = {
+                    ltd: Number(props.lat),
+                    lng: Number(props.lon)
+                };
+                coordinateCache.set(cacheKey, {
+                    data: coords,
+                    expiresAt: Date.now() + COORDINATE_CACHE_TTL_MS
+                });
+                return coords;
+            }
+        } catch (error) {
+            console.error('Geocoding geoapify error:', error.response?.status || error.message);
+            if (error.response?.status === 429) {
+                providerBackoffUntil.geoapify = Date.now() + (10 * 60 * 1000);
+            }
+        }
+    }
+
+    // Provider 2: Open-Meteo fallback
     try {
         const openMeteoResponse = await axios.get(openMeteoUrl, { timeout: 8000 });
         const result = openMeteoResponse.data?.results?.[0];
@@ -45,31 +73,6 @@ module.exports.getAddressCoordinate = async (address) => {
         }
     } catch (error) {
         console.error('Geocoding open-meteo error:', error.response?.status || error.message);
-    }
-
-    // Provider 2: Nominatim fallback
-    try {
-        const response = await axios.get(nominatimUrl, {
-            headers: {
-                'User-Agent': 'Uber-Clone/1.0 (learning project geocoder)'
-            },
-            timeout: 8000
-        });
-
-        if (Array.isArray(response.data) && response.data.length > 0) {
-            const location = response.data[0];
-            const coords = {
-                ltd: Number(location.lat),
-                lng: Number(location.lon)
-            };
-            coordinateCache.set(cacheKey, {
-                data: coords,
-                expiresAt: Date.now() + COORDINATE_CACHE_TTL_MS
-            });
-            return coords;
-        }
-    } catch (error) {
-        console.error('Geocoding nominatim error:', error.response?.status || error.message);
     }
 
     throw new Error('Unable to fetch coordinates');
@@ -320,8 +323,10 @@ module.exports.getAutoCompleteSuggestions = async (input) => {
     }
 
     const openMeteoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(normalizedInput)}&count=5&language=en&format=json`;
-    const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(normalizedInput)}&limit=5`;
-    const nominatimUrl = `https://nominatim.openstreetmap.org/search?format=json&limit=5&q=${encodeURIComponent(normalizedInput)}`;
+    const geoapifyKey = process.env.GEOAPIFY_API_KEY;
+    const geoapifyUrl = geoapifyKey
+        ? `https://api.geoapify.com/v1/geocode/autocomplete?text=${encodeURIComponent(normalizedInput)}&limit=5&apiKey=${geoapifyKey}`
+        : null;
 
     const suggestions = [];
     const seen = new Set();
@@ -340,7 +345,31 @@ module.exports.getAutoCompleteSuggestions = async (input) => {
         });
     };
 
-    // Provider 1 (Primary): Open-Meteo geocoding API (free, no API key)
+    // Provider 1 (Primary): Geoapify autocomplete (free tier)
+    if (geoapifyUrl && Date.now() > providerBackoffUntil.geoapify) {
+        try {
+            const geoapifyResponse = await axios.get(geoapifyUrl, { timeout: 8000 });
+
+            if (Array.isArray(geoapifyResponse.data?.features)) {
+                geoapifyResponse.data.features.forEach((feature) => {
+                    const props = feature.properties || {};
+                    addSuggestion(
+                        props.formatted,
+                        props.place_id || props.result_type,
+                        props.lat,
+                        props.lon
+                    );
+                });
+            }
+        } catch (error) {
+            console.error('Autocomplete geoapify error:', error.response?.status || error.message);
+            if (error.response?.status === 429) {
+                providerBackoffUntil.geoapify = Date.now() + (10 * 60 * 1000);
+            }
+        }
+    }
+
+    // Provider 2 (Fallback): Open-Meteo geocoding API (free, no API key)
     try {
         const openMeteoResponse = await axios.get(openMeteoUrl, { timeout: 8000 });
 
@@ -353,59 +382,6 @@ module.exports.getAutoCompleteSuggestions = async (input) => {
         }
     } catch (error) {
         console.error('Autocomplete open-meteo error:', error.response?.status || error.message);
-    }
-
-    // Provider 2: Photon (good POI/local suggestions when available)
-    if (suggestions.length < 5 && Date.now() > providerBackoffUntil.photon) {
-        try {
-            const photonResponse = await axios.get(photonUrl, {
-                headers: {
-                    'User-Agent': 'Uber-Clone/1.0 (learning project autocomplete)'
-                },
-                timeout: 7000
-            });
-
-            if (photonResponse.data && Array.isArray(photonResponse.data.features)) {
-                photonResponse.data.features.forEach((feature) => {
-                    const props = feature.properties || {};
-                    const coords = feature.geometry?.coordinates || [];
-                    const parts = [ props.name, props.city, props.state, props.country ].filter(Boolean);
-                    const description = parts.join(', ');
-
-                    addSuggestion(description, props.osm_id || props.osm_key, coords[1], coords[0]);
-                });
-            }
-        } catch (error) {
-            console.error('Autocomplete photon error:', error.response?.status || error.message);
-            // Temporary backoff on repeated network issues from provider.
-            providerBackoffUntil.photon = Date.now() + (2 * 60 * 1000);
-        }
-    }
-
-    // Provider 3: Nominatim (best fallback, but strict rate limits)
-    if (suggestions.length < 5 && Date.now() > providerBackoffUntil.nominatim) {
-        try {
-            const nominatimResponse = await axios.get(nominatimUrl, {
-                headers: {
-                    'User-Agent': 'Uber-Clone/1.0 (learning project geocoder)'
-                },
-                timeout: 8000
-            });
-
-            if (Array.isArray(nominatimResponse.data)) {
-                nominatimResponse.data.forEach((item) => {
-                    addSuggestion(item.display_name, item.place_id, item.lat, item.lon);
-                });
-            }
-        } catch (error) {
-            console.error('Autocomplete nominatim error:', error.response?.status || error.message);
-            if (error.response?.status === 429) {
-                // Back off longer on explicit rate limit response.
-                providerBackoffUntil.nominatim = Date.now() + (15 * 60 * 1000);
-            } else {
-                providerBackoffUntil.nominatim = Date.now() + (2 * 60 * 1000);
-            }
-        }
     }
 
     const result = suggestions.slice(0, 5);
