@@ -41,13 +41,6 @@ The system is designed to work both in local development and in cloud deployment
 ### Production URL
 - https://uber-clone-eight-phi.vercel.app/
 
-### App Preview
-
-<p align="center">
-  <a href="https://uber-clone-eight-phi.vercel.app/" target="_blank">
-    <img src="https://image.thum.io/get/width/540/noanimate/https://uber-clone-eight-phi.vercel.app/" alt="Uber Clone App Preview" />
-  </a>
-</p>
 
 ## Core Business Flow
 ### User Journey
