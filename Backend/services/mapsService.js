@@ -4,6 +4,8 @@ const captainModel = require('../models/captainModel');
 // Simple in-memory cache to reduce provider calls in type-ahead flow.
 const suggestionCache = new Map();
 const SUGGESTION_CACHE_TTL_MS = 5 * 60 * 1000;
+const coordinateCache = new Map();
+const COORDINATE_CACHE_TTL_MS = 30 * 60 * 1000;
 
 module.exports.getAddressCoordinate = async (address) => {
     const normalizedAddress = (address || '').trim();
@@ -12,13 +14,39 @@ module.exports.getAddressCoordinate = async (address) => {
         throw new Error('Invalid address');
     }
 
-    const nominatimUrl = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(normalizedAddress)}`;
-    const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(normalizedAddress)}&limit=1`;
+    const cacheKey = normalizedAddress.toLowerCase();
+    const cachedCoords = coordinateCache.get(cacheKey);
+    if (cachedCoords && cachedCoords.expiresAt > Date.now()) {
+        return cachedCoords.data;
+    }
 
+    const openMeteoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(normalizedAddress)}&count=1&language=en&format=json`;
+    const nominatimUrl = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(normalizedAddress)}`;
+
+    // Provider 1: Open-Meteo (free, no key)
+    try {
+        const openMeteoResponse = await axios.get(openMeteoUrl, { timeout: 8000 });
+        const result = openMeteoResponse.data?.results?.[0];
+
+        if (result && typeof result.latitude === 'number' && typeof result.longitude === 'number') {
+            const coords = {
+                ltd: Number(result.latitude),
+                lng: Number(result.longitude)
+            };
+            coordinateCache.set(cacheKey, {
+                data: coords,
+                expiresAt: Date.now() + COORDINATE_CACHE_TTL_MS
+            });
+            return coords;
+        }
+    } catch (error) {
+        console.error('Geocoding open-meteo error:', error.response?.status || error.message);
+    }
+
+    // Provider 2: Nominatim fallback
     try {
         const response = await axios.get(nominatimUrl, {
             headers: {
-                // Nominatim usage policy requires a valid identifying User-Agent.
                 'User-Agent': 'Uber-Clone/1.0 (learning project geocoder)'
             },
             timeout: 8000
@@ -26,37 +54,21 @@ module.exports.getAddressCoordinate = async (address) => {
 
         if (Array.isArray(response.data) && response.data.length > 0) {
             const location = response.data[0];
-            return {
-                // Keep existing response keys to avoid breaking current consumers.
+            const coords = {
                 ltd: Number(location.lat),
                 lng: Number(location.lon)
             };
+            coordinateCache.set(cacheKey, {
+                data: coords,
+                expiresAt: Date.now() + COORDINATE_CACHE_TTL_MS
+            });
+            return coords;
         }
-
-        // Fallback: Photon (OpenStreetMap based, free).
-        const fallbackResponse = await axios.get(photonUrl, { timeout: 8000 });
-
-        if (
-            fallbackResponse.data &&
-            Array.isArray(fallbackResponse.data.features) &&
-            fallbackResponse.data.features.length > 0
-        ) {
-            const coords = fallbackResponse.data.features[0].geometry?.coordinates;
-
-            if (Array.isArray(coords) && coords.length === 2) {
-                return {
-                    // Photon returns [lon, lat]. Keep existing response keys for compatibility.
-                    ltd: Number(coords[1]),
-                    lng: Number(coords[0])
-                };
-            }
-        }
-
-        throw new Error('Unable to fetch coordinates');
     } catch (error) {
-        console.error('Geocoding error:', error.response?.status || error.message);
-        throw error;
+        console.error('Geocoding nominatim error:', error.response?.status || error.message);
     }
+
+    throw new Error('Unable to fetch coordinates');
 }
 
 const formatDistanceText = (meters) => {
@@ -78,6 +90,23 @@ const formatDurationText = (seconds) => {
         return `${hours} hr`;
     }
     return `${hours} hr ${minutes} mins`;
+};
+
+const toRadians = (value) => (value * Math.PI) / 180;
+
+const getHaversineDistanceMeters = (a, b) => {
+    const earthRadius = 6371000;
+    const dLat = toRadians(b.ltd - a.ltd);
+    const dLng = toRadians(b.lng - a.lng);
+    const lat1 = toRadians(a.ltd);
+    const lat2 = toRadians(b.ltd);
+
+    const x =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+
+    const c = 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+    return earthRadius * c;
 };
 
 module.exports.getDistanceTime = async (origin, destination) => {
@@ -131,7 +160,37 @@ module.exports.getDistanceTime = async (origin, destination) => {
         throw new Error('Unable to fetch distance and time');
     } catch (error) {
         console.error('Routing error:', error.response?.status || error.message);
-        throw error;
+
+        // Fallback when OSRM is unavailable/rate-limited.
+        const straightLineMeters = getHaversineDistanceMeters(originCoords, destinationCoords);
+        const roadFactor = 1.25;
+        const estimatedDistanceMeters = Math.max(300, Math.round(straightLineMeters * roadFactor));
+
+        // Average city speed assumption for fallback ETA (~28 km/h).
+        const avgMetersPerSecond = 28 * (1000 / 3600);
+        const estimatedDurationSeconds = Math.max(
+            180,
+            Math.round(estimatedDistanceMeters / avgMetersPerSecond)
+        );
+
+        return {
+            distance: {
+                text: formatDistanceText(estimatedDistanceMeters),
+                value: estimatedDistanceMeters
+            },
+            duration: {
+                text: formatDurationText(estimatedDurationSeconds),
+                value: estimatedDurationSeconds
+            },
+            origin: {
+                address: normalizedOrigin,
+                coordinates: originCoords
+            },
+            destination: {
+                address: normalizedDestination,
+                coordinates: destinationCoords
+            }
+        };
     }
 };
 

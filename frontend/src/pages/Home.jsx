@@ -224,15 +224,20 @@ const Home = () => {
         setVehiclePanel(true)
         setPanelOpen(false)
 
-        const response = await axios.get(`${import.meta.env.VITE_BASE_URL}api/rides/get-fare`, {
-            params: { pickup, destination },
-            headers: {
-                Authorization: `Bearer ${localStorage.getItem('token')}`
-            }
-        })
+        try {
+            const response = await axios.get(`${import.meta.env.VITE_BASE_URL}api/rides/get-fare`, {
+                params: { pickup, destination },
+                headers: {
+                    Authorization: `Bearer ${localStorage.getItem('token')}`
+                }
+            })
 
-
-        setFare(response.data)
+            setFare(response.data)
+        } catch (error) {
+            console.error('Get fare failed:', error?.response?.data || error.message)
+            setVehiclePanel(false)
+            setPanelOpen(true)
+        }
 
 
     }
