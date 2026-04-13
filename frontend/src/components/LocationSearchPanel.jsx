@@ -1,14 +1,23 @@
 import React from 'react'
 
-const LocationSearchPanel = ({ suggestions, setVehiclePanel, setPanelOpen, setPickup, setDestination, activeField }) => {
+const LocationSearchPanel = ({ suggestions, setVehiclePanel, setPanelOpen, setPickup, setPickupCoords, setDestination, setDestinationCoords, activeField }) => {
 
     const handleSuggestionClick = (suggestion) => {
         const label = suggestion?.description || suggestion
+        const coords =
+            suggestion && typeof suggestion === 'object'
+                ? {
+                    ltd: Number(suggestion.ltd),
+                    lng: Number(suggestion.lng)
+                }
+                : null
 
         if (activeField === 'pickup') {
             setPickup(label)
+            setPickupCoords(coords)
         } else if (activeField === 'destination') {
             setDestination(label)
+            setDestinationCoords(coords)
         }
     }
 

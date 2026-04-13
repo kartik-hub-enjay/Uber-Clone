@@ -36,6 +36,8 @@ const Home = () => {
     const [ waitingForDriver, setWaitingForDriver ] = useState(false)
     const [ pickupSuggestions, setPickupSuggestions ] = useState([])
     const [ destinationSuggestions, setDestinationSuggestions ] = useState([])
+    const [ pickupCoords, setPickupCoords ] = useState(null)
+    const [ destinationCoords, setDestinationCoords ] = useState(null)
     const [ activeField, setActiveField ] = useState(null)
     const [ fare, setFare ] = useState({})
     const [ vehicleType, setVehicleType ] = useState(null)
@@ -77,6 +79,7 @@ const Home = () => {
     const handlePickupChange = async (e) => {
         const value = e.target.value
         setPickup(value)
+        setPickupCoords(null)
         setPanelOpen(true)
         setActiveField('pickup')
 
@@ -112,6 +115,7 @@ const Home = () => {
     const handleDestinationChange = async (e) => {
         const value = e.target.value
         setDestination(value)
+        setDestinationCoords(null)
         setPanelOpen(true)
         setActiveField('destination')
 
@@ -226,7 +230,14 @@ const Home = () => {
 
         try {
             const response = await axios.get(`${import.meta.env.VITE_BASE_URL}api/rides/get-fare`, {
-                params: { pickup, destination },
+                params: {
+                    pickup,
+                    destination,
+                    pickupLtd: pickupCoords?.ltd,
+                    pickupLng: pickupCoords?.lng,
+                    destinationLtd: destinationCoords?.ltd,
+                    destinationLng: destinationCoords?.lng
+                },
                 headers: {
                     Authorization: `Bearer ${localStorage.getItem('token')}`
                 }
@@ -247,7 +258,9 @@ const Home = () => {
             await axios.post(`${import.meta.env.VITE_BASE_URL}api/rides/create`, {
                 pickup,
                 destination,
-                vehicleType
+                vehicleType,
+                pickupCoords,
+                destinationCoords
             }, {
                 headers: {
                     Authorization: `Bearer ${localStorage.getItem('token')}`
@@ -314,7 +327,9 @@ const Home = () => {
                         setPanelOpen={setPanelOpen}
                         setVehiclePanel={setVehiclePanel}
                         setPickup={setPickup}
+                        setPickupCoords={setPickupCoords}
                         setDestination={setDestination}
+                        setDestinationCoords={setDestinationCoords}
                         activeField={activeField}
                     />
                 </div>

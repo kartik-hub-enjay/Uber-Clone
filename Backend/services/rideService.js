@@ -2,13 +2,36 @@ const rideModel = require('../models/rideModel');
 const mapService = require('./mapsService');
 const crypto = require('crypto')
 
-async function getFare(pickup, destination) {
+async function getFare(pickup, destination, options = {}) {
 
     if (!pickup || !destination) {
         throw new Error('Pickup and destination are required');
     }
 
-    const distanceTime = await mapService.getDistanceTime(pickup, destination);
+    const hasPickupCoords =
+        options?.pickupCoords &&
+        Number.isFinite(Number(options.pickupCoords.ltd)) &&
+        Number.isFinite(Number(options.pickupCoords.lng));
+
+    const hasDestinationCoords =
+        options?.destinationCoords &&
+        Number.isFinite(Number(options.destinationCoords.ltd)) &&
+        Number.isFinite(Number(options.destinationCoords.lng));
+
+    const distanceTime = (hasPickupCoords && hasDestinationCoords)
+        ? await mapService.getDistanceTimeByCoords(
+            {
+                ltd: Number(options.pickupCoords.ltd),
+                lng: Number(options.pickupCoords.lng)
+            },
+            {
+                ltd: Number(options.destinationCoords.ltd),
+                lng: Number(options.destinationCoords.lng)
+            },
+            pickup,
+            destination
+        )
+        : await mapService.getDistanceTime(pickup, destination);
 
     const baseFare = {
         auto: 30,
@@ -53,13 +76,16 @@ function getOtp(num) {
 
 
 module.exports.createRide = async ({
-    user, pickup, destination, vehicleType
+    user, pickup, destination, vehicleType, pickupCoords, destinationCoords
 }) => {
     if (!user || !pickup || !destination || !vehicleType) {
         throw new Error('All fields are required');
     }
 
-    const fare = await getFare(pickup, destination);
+    const fare = await getFare(pickup, destination, {
+        pickupCoords,
+        destinationCoords
+    });
     const normalizedVehicleType = vehicleType === 'moto' ? 'motorcycle' : vehicleType;
 
 

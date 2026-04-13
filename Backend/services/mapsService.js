@@ -194,6 +194,94 @@ module.exports.getDistanceTime = async (origin, destination) => {
     }
 };
 
+module.exports.getDistanceTimeByCoords = async (originCoords, destinationCoords, originLabel = 'Origin', destinationLabel = 'Destination') => {
+    if (
+        !originCoords ||
+        !destinationCoords ||
+        !Number.isFinite(Number(originCoords.ltd)) ||
+        !Number.isFinite(Number(originCoords.lng)) ||
+        !Number.isFinite(Number(destinationCoords.ltd)) ||
+        !Number.isFinite(Number(destinationCoords.lng))
+    ) {
+        throw new Error('Invalid coordinates');
+    }
+
+    const normalizedOriginCoords = {
+        ltd: Number(originCoords.ltd),
+        lng: Number(originCoords.lng)
+    };
+
+    const normalizedDestinationCoords = {
+        ltd: Number(destinationCoords.ltd),
+        lng: Number(destinationCoords.lng)
+    };
+
+    const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${normalizedOriginCoords.lng},${normalizedOriginCoords.ltd};${normalizedDestinationCoords.lng},${normalizedDestinationCoords.ltd}?overview=false`;
+
+    try {
+        const response = await axios.get(osrmUrl, { timeout: 8000 });
+
+        if (
+            response.data &&
+            response.data.code === 'Ok' &&
+            Array.isArray(response.data.routes) &&
+            response.data.routes.length > 0
+        ) {
+            const route = response.data.routes[0];
+            return {
+                distance: {
+                    text: formatDistanceText(route.distance),
+                    value: Math.round(route.distance)
+                },
+                duration: {
+                    text: formatDurationText(route.duration),
+                    value: Math.round(route.duration)
+                },
+                origin: {
+                    address: originLabel,
+                    coordinates: normalizedOriginCoords
+                },
+                destination: {
+                    address: destinationLabel,
+                    coordinates: normalizedDestinationCoords
+                }
+            };
+        }
+
+        throw new Error('Unable to fetch distance and time');
+    } catch (error) {
+        console.error('Routing by coords error:', error.response?.status || error.message);
+
+        const straightLineMeters = getHaversineDistanceMeters(normalizedOriginCoords, normalizedDestinationCoords);
+        const roadFactor = 1.25;
+        const estimatedDistanceMeters = Math.max(300, Math.round(straightLineMeters * roadFactor));
+        const avgMetersPerSecond = 28 * (1000 / 3600);
+        const estimatedDurationSeconds = Math.max(
+            180,
+            Math.round(estimatedDistanceMeters / avgMetersPerSecond)
+        );
+
+        return {
+            distance: {
+                text: formatDistanceText(estimatedDistanceMeters),
+                value: estimatedDistanceMeters
+            },
+            duration: {
+                text: formatDurationText(estimatedDurationSeconds),
+                value: estimatedDurationSeconds
+            },
+            origin: {
+                address: originLabel,
+                coordinates: normalizedOriginCoords
+            },
+            destination: {
+                address: destinationLabel,
+                coordinates: normalizedDestinationCoords
+            }
+        };
+    }
+};
+
 module.exports.getAutoCompleteSuggestions = async (input) => {
     const normalizedInput = (input || '').trim();
 
