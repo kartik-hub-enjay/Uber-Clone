@@ -10,6 +10,7 @@ const ConfirmRidePopUp = (props) => {
 
     const submitHander = async (e) => {
         e.preventDefault()
+        const captainAuthToken = localStorage.getItem('captainToken') || localStorage.getItem('token')
 
         const response = await axios.get(`${import.meta.env.VITE_BASE_URL}api/rides/start-ride`, {
             params: {
@@ -17,7 +18,7 @@ const ConfirmRidePopUp = (props) => {
                 otp: otp
             },
             headers: {
-                Authorization: `Bearer ${localStorage.getItem('token')}`
+                Authorization: `Bearer ${captainAuthToken}`
             }
         })
 

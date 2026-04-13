@@ -9,7 +9,7 @@ const ConfirmRide = (props) => {
             }}><i className="text-3xl text-gray-200 ri-arrow-down-wide-line"></i></h5>
             <h3 className='text-2xl font-semibold mb-5'>Confirm your Ride</h3>
 
-            <div className='flex gap-2 justify-between flex-col items-center'>
+            <div className='flex gap-2 justify-between flex-col items-center pb-4'>
                 <img className='h-20' src={uberCar} alt="" />
                 <div className='w-full mt-5'>
                     <div className='flex items-center gap-5 p-3 border-b-2'>
@@ -39,7 +39,7 @@ const ConfirmRide = (props) => {
                     props.setConfirmRidePanel(false)
                     props.createRide()
 
-                }} className='w-full mt-5 bg-green-600 text-white font-semibold p-2 rounded-lg'>Confirm</button>
+                }} className='w-full mt-5 mb-2 bg-green-600 text-white font-semibold p-2 rounded-lg'>Confirm</button>
             </div>
         </div>
     )
