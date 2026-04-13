@@ -6,6 +6,10 @@ const suggestionCache = new Map();
 const SUGGESTION_CACHE_TTL_MS = 5 * 60 * 1000;
 const coordinateCache = new Map();
 const COORDINATE_CACHE_TTL_MS = 30 * 60 * 1000;
+const providerBackoffUntil = {
+    photon: 0,
+    nominatim: 0
+};
 
 module.exports.getAddressCoordinate = async (address) => {
     const normalizedAddress = (address || '').trim();
@@ -295,7 +299,28 @@ module.exports.getAutoCompleteSuggestions = async (input) => {
         return cached.data;
     }
 
+    // Prefix cache reuse: if user types progressively, reuse previous cached results.
+    const prefixEntries = Array.from(suggestionCache.entries())
+        .filter(([ key, value ]) => cacheKey.startsWith(key) && value.expiresAt > Date.now())
+        .sort((a, b) => b[0].length - a[0].length);
+
+    if (prefixEntries.length > 0) {
+        const [ , prefixValue ] = prefixEntries[0];
+        const filtered = (prefixValue.data || [])
+            .filter((item) => (item?.description || '').toLowerCase().includes(cacheKey))
+            .slice(0, 5);
+
+        if (filtered.length >= 3) {
+            suggestionCache.set(cacheKey, {
+                data: filtered,
+                expiresAt: Date.now() + SUGGESTION_CACHE_TTL_MS
+            });
+            return filtered;
+        }
+    }
+
     const openMeteoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(normalizedInput)}&count=5&language=en&format=json`;
+    const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(normalizedInput)}&limit=5`;
     const nominatimUrl = `https://nominatim.openstreetmap.org/search?format=json&limit=5&q=${encodeURIComponent(normalizedInput)}`;
 
     const suggestions = [];
@@ -330,8 +355,35 @@ module.exports.getAutoCompleteSuggestions = async (input) => {
         console.error('Autocomplete open-meteo error:', error.response?.status || error.message);
     }
 
-    // Provider 2 (Fallback): Nominatim
-    if (suggestions.length === 0) {
+    // Provider 2: Photon (good POI/local suggestions when available)
+    if (suggestions.length < 5 && Date.now() > providerBackoffUntil.photon) {
+        try {
+            const photonResponse = await axios.get(photonUrl, {
+                headers: {
+                    'User-Agent': 'Uber-Clone/1.0 (learning project autocomplete)'
+                },
+                timeout: 7000
+            });
+
+            if (photonResponse.data && Array.isArray(photonResponse.data.features)) {
+                photonResponse.data.features.forEach((feature) => {
+                    const props = feature.properties || {};
+                    const coords = feature.geometry?.coordinates || [];
+                    const parts = [ props.name, props.city, props.state, props.country ].filter(Boolean);
+                    const description = parts.join(', ');
+
+                    addSuggestion(description, props.osm_id || props.osm_key, coords[1], coords[0]);
+                });
+            }
+        } catch (error) {
+            console.error('Autocomplete photon error:', error.response?.status || error.message);
+            // Temporary backoff on repeated network issues from provider.
+            providerBackoffUntil.photon = Date.now() + (2 * 60 * 1000);
+        }
+    }
+
+    // Provider 3: Nominatim (best fallback, but strict rate limits)
+    if (suggestions.length < 5 && Date.now() > providerBackoffUntil.nominatim) {
         try {
             const nominatimResponse = await axios.get(nominatimUrl, {
                 headers: {
@@ -347,6 +399,12 @@ module.exports.getAutoCompleteSuggestions = async (input) => {
             }
         } catch (error) {
             console.error('Autocomplete nominatim error:', error.response?.status || error.message);
+            if (error.response?.status === 429) {
+                // Back off longer on explicit rate limit response.
+                providerBackoffUntil.nominatim = Date.now() + (15 * 60 * 1000);
+            } else {
+                providerBackoffUntil.nominatim = Date.now() + (2 * 60 * 1000);
+            }
         }
     }
 
